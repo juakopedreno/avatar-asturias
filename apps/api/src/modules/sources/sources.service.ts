@@ -1,10 +1,14 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
+import { AuditService } from "../audit/audit.service";
 import { PrismaService } from "../../prisma/prisma.service";
 import { CreateSourceDto } from "./dto/create-source.dto";
 
 @Injectable()
 export class SourcesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly auditService: AuditService,
+  ) {}
 
   findAll() {
     return this.prisma.source.findMany({
@@ -40,7 +44,7 @@ export class SourcesService {
     };
   }
 
-  async create(dto: CreateSourceDto) {
+  async create(dto: CreateSourceDto, actor?: string) {
     const row = await this.prisma.source.create({
       data: {
         name: dto.name,
@@ -51,6 +55,7 @@ export class SourcesService {
         confidence: dto.confidence ?? 0,
       },
     });
+    await this.auditService.append({ actor: actor ?? "sistema", module: "sources", action: "create", detail: `Fuente creada: ${dto.name} (${dto.type})` }).catch(() => {});
     return this.findById(row.id);
   }
 
@@ -69,12 +74,13 @@ export class SourcesService {
     return this.findById(id);
   }
 
-  async remove(id: string) {
+  async remove(id: string, actor?: string) {
     const source = await this.prisma.source.findUnique({ where: { id } });
     if (!source) {
       throw new NotFoundException("Fuente no encontrada.");
     }
     await this.prisma.source.delete({ where: { id } });
+    await this.auditService.append({ actor: actor ?? "sistema", module: "sources", action: "delete", detail: `Fuente eliminada: ${source.name} (${source.type})` }).catch(() => {});
     return { ok: true };
   }
 

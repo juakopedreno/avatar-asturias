@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Param, Patch, Post, UseGuards } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
+import { CurrentUser } from "../../common/auth/current-user.decorator";
 import { JwtAuthGuard } from "../../common/auth/jwt-auth.guard";
 import { Roles } from "../../common/auth/roles.decorator";
 import { RolesGuard } from "../../common/auth/roles.guard";
@@ -21,13 +22,13 @@ export class UsersRolesController {
 
   @Post("users")
   @Roles("admin")
-  async create(@Body() dto: CreateUserDto) {
-    return this.usersRolesService.create(dto);
+  async create(@Body() dto: CreateUserDto, @CurrentUser() user?: { email?: string }) {
+    return this.usersRolesService.create(dto, user?.email);
   }
 
   @Patch("users/:id")
   @Roles("admin")
-  async update(@Param("id") id: string, @Body() dto: UpdateUserDto) {
-    return this.usersRolesService.update(id, dto);
+  async update(@Param("id") id: string, @Body() dto: UpdateUserDto, @CurrentUser() user?: { email?: string }) {
+    return this.usersRolesService.update(id, dto, user?.email);
   }
 }

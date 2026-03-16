@@ -1,11 +1,15 @@
 import { BadRequestException, Injectable } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
+import { AuditService } from "../audit/audit.service";
 import { PrismaService } from "../../prisma/prisma.service";
 import { UpdateSettingsDto, validateSettingsShape } from "./dto/update-settings.dto";
 
 @Injectable()
 export class SettingsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly auditService: AuditService,
+  ) {}
 
   private readonly defaultSettings: UpdateSettingsDto = {
     branding: {
@@ -55,7 +59,7 @@ export class SettingsService {
     return row.value as unknown as UpdateSettingsDto;
   }
 
-  async updateSettings(dto: UpdateSettingsDto) {
+  async updateSettings(dto: UpdateSettingsDto, actor?: string) {
     if (!validateSettingsShape(dto)) {
       throw new BadRequestException("Formato invalido para configuracion.");
     }
@@ -64,6 +68,7 @@ export class SettingsService {
       update: { value: dto as unknown as Prisma.InputJsonValue },
       create: { key: "app_settings", value: dto as unknown as Prisma.InputJsonValue },
     });
+    await this.auditService.append({ actor: actor ?? "sistema", module: "settings", action: "config_update", detail: "Configuración general actualizada" }).catch(() => {});
     return dto;
   }
 }

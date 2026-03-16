@@ -2,6 +2,7 @@ import { Injectable, UnauthorizedException } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import { compare, hash } from "bcryptjs";
 import { randomUUID } from "node:crypto";
+import { AuditService } from "../audit/audit.service";
 import { PrismaService } from "../../prisma/prisma.service";
 import { LoginDto } from "./dto/login.dto";
 import { MfaVerifyDto } from "./dto/mfa-verify.dto";
@@ -12,6 +13,7 @@ export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
+    private readonly auditService: AuditService,
   ) {}
 
   async login(dto: LoginDto) {
@@ -19,12 +21,16 @@ export class AuthService {
       where: { email: dto.email },
     });
     if (!user) {
+      await this.auditService.append({ actor: dto.email, module: "auth", action: "login_failed", detail: "Login fallido: usuario no encontrado" }).catch(() => {});
       throw new UnauthorizedException("Credenciales invalidas.");
     }
     const isMatch = await compare(dto.password, user.passwordHash);
     if (!isMatch) {
+      await this.auditService.append({ actor: dto.email, module: "auth", action: "login_failed", detail: "Login fallido: contraseña incorrecta" }).catch(() => {});
       throw new UnauthorizedException("Credenciales invalidas.");
     }
+
+    await this.auditService.append({ actor: user.email, module: "auth", action: "login", detail: "Acceso correcto al panel admin" }).catch(() => {});
 
     await this.prisma.user.update({
       where: { id: user.id },
@@ -71,6 +77,8 @@ export class AuthService {
       data: { mfaVerified: true },
     });
 
+    await this.auditService.append({ actor: session.user.email, module: "auth", action: "mfa_verified", detail: "MFA verificado, acceso concedido" }).catch(() => {});
+
     return this.issueTokens(session.user.id, session.user.email, session.user.role, session.id);
   }
 
@@ -106,13 +114,15 @@ export class AuthService {
   async logout(dto: RefreshDto) {
     try {
       const refreshSecret = this.getRequiredSecret("JWT_REFRESH_SECRET");
-      const payload = await this.jwtService.verifyAsync<{ tokenId: string }>(dto.refreshToken, {
+      const payload = await this.jwtService.verifyAsync<{ tokenId: string; email?: string }>(dto.refreshToken, {
         secret: refreshSecret,
       });
       await this.prisma.refreshToken.update({
         where: { id: payload.tokenId },
         data: { revoked: true },
       });
+      const actor = payload.email ?? "sistema";
+      await this.auditService.append({ actor, module: "auth", action: "logout", detail: "Cierre de sesión" }).catch(() => {});
     } catch {
       // token invalido -> se considera logout idempotente
     }

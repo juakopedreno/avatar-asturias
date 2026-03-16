@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Put, UseGuards } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
+import { CurrentUser } from "../../common/auth/current-user.decorator";
 import { JwtAuthGuard } from "../../common/auth/jwt-auth.guard";
 import { Roles } from "../../common/auth/roles.decorator";
 import { RolesGuard } from "../../common/auth/roles.guard";
@@ -19,7 +20,7 @@ export class TrainingController {
 
   @Put("policy")
   @Roles("admin", "editor")
-  async updatePolicy(@Body() dto: UpdateTrainingPolicyDto) {
-    return this.trainingService.updatePolicy(dto);
+  async updatePolicy(@Body() dto: UpdateTrainingPolicyDto, @CurrentUser() user?: { email?: string }) {
+    return this.trainingService.updatePolicy(dto, user?.email);
   }
 }

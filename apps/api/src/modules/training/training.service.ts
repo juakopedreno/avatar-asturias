@@ -1,11 +1,15 @@
 import { Injectable } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
+import { AuditService } from "../audit/audit.service";
 import { PrismaService } from "../../prisma/prisma.service";
 import { UpdateTrainingPolicyDto } from "./dto/update-training-policy.dto";
 
 @Injectable()
 export class TrainingService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly auditService: AuditService,
+  ) {}
 
   private readonly defaultPolicy: UpdateTrainingPolicyDto = {
     tone: "Formal y amable",
@@ -43,7 +47,7 @@ export class TrainingService {
     return row.value as unknown as UpdateTrainingPolicyDto;
   }
 
-  async updatePolicy(dto: UpdateTrainingPolicyDto) {
+  async updatePolicy(dto: UpdateTrainingPolicyDto, actor?: string) {
     await this.prisma.systemConfig.upsert({
       where: { key: "training_policy" },
       update: { value: dto as unknown as Prisma.InputJsonValue },
@@ -52,6 +56,7 @@ export class TrainingService {
         value: dto as unknown as Prisma.InputJsonValue,
       },
     });
+    await this.auditService.append({ actor: actor ?? "sistema", module: "training", action: "config_update", detail: "Política de entrenamiento actualizada" }).catch(() => {});
     return dto;
   }
 }

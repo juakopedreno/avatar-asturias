@@ -1,12 +1,16 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { hash } from "bcryptjs";
+import { AuditService } from "../audit/audit.service";
 import { PrismaService } from "../../prisma/prisma.service";
 import { CreateUserDto } from "./dto/create-user.dto";
 import { UpdateUserDto } from "./dto/update-user.dto";
 
 @Injectable()
 export class UsersRolesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly auditService: AuditService,
+  ) {}
 
   async findAll() {
     const users = await this.prisma.user.findMany({
@@ -24,7 +28,7 @@ export class UsersRolesService {
     }));
   }
 
-  async create(dto: CreateUserDto) {
+  async create(dto: CreateUserDto, actor?: string) {
     const password = dto.password ?? "Torremolinos2026!";
     const row = await this.prisma.user.create({
       data: {
@@ -37,6 +41,7 @@ export class UsersRolesService {
         passwordHash: await hash(password, 10),
       },
     });
+    await this.auditService.append({ actor: actor ?? "sistema", module: "users", action: "create", detail: `Usuario creado: ${dto.email} (${dto.role})` }).catch(() => {});
     return {
       id: row.id,
       email: row.email,
@@ -49,7 +54,7 @@ export class UsersRolesService {
     };
   }
 
-  async update(id: string, dto: UpdateUserDto) {
+  async update(id: string, dto: UpdateUserDto, actor?: string) {
     const existing = await this.prisma.user.findUnique({ where: { id } });
     if (!existing) {
       throw new NotFoundException("Usuario no encontrado.");
@@ -63,6 +68,7 @@ export class UsersRolesService {
         modules: dto.modules ?? existing.modules,
       },
     });
+    await this.auditService.append({ actor: actor ?? "sistema", module: "users", action: "update", detail: `Usuario actualizado: ${existing.email}` }).catch(() => {});
     return {
       id: row.id,
       email: row.email,

@@ -1,5 +1,6 @@
 import { Body, Controller, Delete, Get, Param, Post, UseGuards } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
+import { CurrentUser } from "../../common/auth/current-user.decorator";
 import { JwtAuthGuard } from "../../common/auth/jwt-auth.guard";
 import { Roles } from "../../common/auth/roles.decorator";
 import { RolesGuard } from "../../common/auth/roles.guard";
@@ -19,8 +20,8 @@ export class SourcesController {
 
   @Post()
   @Roles("admin", "editor")
-  async create(@Body() dto: CreateSourceDto) {
-    return this.sourcesService.create(dto);
+  async create(@Body() dto: CreateSourceDto, @CurrentUser() user?: { email?: string }) {
+    return this.sourcesService.create(dto, user?.email);
   }
 
   @Post(":id/sync")
@@ -36,7 +37,7 @@ export class SourcesController {
 
   @Delete(":id")
   @Roles("admin", "editor")
-  async remove(@Param("id") id: string) {
-    return this.sourcesService.remove(id);
+  async remove(@Param("id") id: string, @CurrentUser() user?: { email?: string }) {
+    return this.sourcesService.remove(id, user?.email);
   }
 }

@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Put, UseGuards } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
+import { CurrentUser } from "../../common/auth/current-user.decorator";
 import { JwtAuthGuard } from "../../common/auth/jwt-auth.guard";
 import { Roles } from "../../common/auth/roles.decorator";
 import { RolesGuard } from "../../common/auth/roles.guard";
@@ -20,7 +21,7 @@ export class SettingsController {
 
   @Put()
   @Roles("admin")
-  async updateSettings(@Body() dto: UpdateSettingsDto) {
-    return this.settingsService.updateSettings(dto);
+  async updateSettings(@Body() dto: UpdateSettingsDto, @CurrentUser() user?: { email?: string }) {
+    return this.settingsService.updateSettings(dto, user?.email);
   }
 }

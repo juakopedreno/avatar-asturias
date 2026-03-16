@@ -1,12 +1,16 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
+import { AuditService } from "../audit/audit.service";
 import { PrismaService } from "../../prisma/prisma.service";
 import { CreateContentDto } from "./dto/create-content.dto";
 import { UpdateContentDto } from "./dto/update-content.dto";
 
 @Injectable()
 export class ContentService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly auditService: AuditService,
+  ) {}
 
   findAll() {
     return this.prisma.contentItem.findMany({
@@ -20,7 +24,7 @@ export class ContentService {
     });
   }
 
-  async create(dto: CreateContentDto) {
+  async create(dto: CreateContentDto, actor?: string) {
     const record = await this.prisma.contentItem.create({
       data: {
         title: dto.title,
@@ -37,10 +41,11 @@ export class ContentService {
       },
       include: { versions: true },
     });
+    await this.auditService.append({ actor: actor ?? "sistema", module: "content", action: "create", detail: `Contenido creado: ${dto.title}` }).catch(() => {});
     return record;
   }
 
-  async update(id: string, dto: UpdateContentDto) {
+  async update(id: string, dto: UpdateContentDto, actor?: string) {
     const record = await this.prisma.contentItem.findUnique({
       where: { id },
       include: {
@@ -73,10 +78,15 @@ export class ContentService {
       },
       include: { versions: true },
     });
+    await this.auditService.append({ actor: actor ?? "sistema", module: "content", action: "update", detail: `Contenido actualizado: ${record.title}` }).catch(() => {});
     return updated;
   }
 
-  async remove(id: string) {
+  async remove(id: string, actor?: string) {
+    const record = await this.prisma.contentItem.findUnique({ where: { id } });
+    if (record) {
+      await this.auditService.append({ actor: actor ?? "sistema", module: "content", action: "delete", detail: `Contenido eliminado: ${record.title}` }).catch(() => {});
+    }
     await this.prisma.contentItem.delete({ where: { id } });
     return { ok: true };
   }
