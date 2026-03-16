@@ -21,7 +21,7 @@ import { AuthProvider } from "./context/auth-context";
 
 const queryClient = new QueryClient();
 
-const FAVICON_HREF = "/favicon.svg?v=2";
+const FAVICON_HREF = "/logo-torremolinos.png?v=3";
 
 function useFavicon() {
   useEffect(() => {
@@ -29,7 +29,7 @@ function useFavicon() {
     if (!link) {
       link = document.createElement("link");
       link.rel = "icon";
-      link.type = "image/svg+xml";
+      link.type = "image/png";
       document.head.appendChild(link);
     }
     link.href = FAVICON_HREF;

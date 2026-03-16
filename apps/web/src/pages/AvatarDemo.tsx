@@ -424,13 +424,13 @@ export default function AvatarDemo() {
 
   return (
     <div
-      className="flex h-screen overflow-hidden"
+      className="flex flex-col md:flex-row h-screen overflow-hidden"
       style={{
         background: sceneBackground,
       }}
     >
-      {/* Left: Avatar Viewport */}
-      <div className="relative flex-1 flex items-end justify-center pb-8 md:pb-10 overflow-hidden">
+      {/* Avatar Viewport: arriba en móvil, izquierda en desktop */}
+      <div className="relative flex-shrink-0 md:flex-1 flex flex-col items-center justify-end min-h-[280px] md:min-h-0 pb-4 md:pb-10 overflow-hidden">
         {/* Sun glow */}
         <div
           className="absolute top-12 left-1/2 -translate-x-1/2 w-[520px] h-[520px] rounded-full pointer-events-none"
@@ -459,9 +459,9 @@ export default function AvatarDemo() {
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
-          className="relative z-10 flex h-full w-full flex-col items-center justify-end pb-6"
+          className="relative z-10 flex h-full min-h-[200px] w-full flex-col items-center justify-end pb-2 md:pb-6"
         >
-          <div className="absolute inset-0">
+          <div className="absolute inset-0 min-h-[200px]">
             {avatarSession?.provider === 'anam' ? (
               <div className="absolute inset-0 overflow-hidden">
                 <video
@@ -514,14 +514,14 @@ export default function AvatarDemo() {
             key={state}
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            className="mt-8 flex items-center gap-3 px-5 py-2.5 glass-dark rounded-full"
+            className="mt-4 md:mt-8 flex items-center gap-3 px-5 py-2.5 glass-dark rounded-full"
           >
             <div className={`w-2.5 h-2.5 rounded-full ${stateColors[state]} ${state !== 'idle' ? 'animate-pulse-soft' : ''}`} />
             <span className="text-xs font-medium text-primary-foreground/80 tracking-widest uppercase">{stateLabels[state]}</span>
           </motion.div>
 
           {/* Suggestions */}
-          <div className="mt-8 flex flex-wrap gap-2 justify-center max-w-lg px-4">
+          <div className="mt-4 md:mt-8 flex flex-wrap gap-2 justify-center max-w-lg px-4">
             {suggestedQuestions.slice(0, 3).map((q) => (
               <button
                 key={q}
@@ -535,7 +535,7 @@ export default function AvatarDemo() {
         </motion.div>
 
         {/* Language Selector */}
-        <div className="absolute bottom-6 left-6 z-20">
+        <div className="absolute bottom-2 left-4 md:bottom-6 md:left-6 z-20">
           <div className="flex items-center gap-2 glass-dark rounded-lg px-3 py-2">
             <Globe className="w-3.5 h-3.5 text-primary" />
             <select
@@ -555,12 +555,12 @@ export default function AvatarDemo() {
         </div>
       </div>
 
-      {/* Right: Chat Panel */}
+      {/* Chat Panel: abajo en móvil, derecha en desktop */}
       <motion.div
         initial={{ x: 100, opacity: 0 }}
         animate={{ x: 0, opacity: 1 }}
         transition={{ duration: 0.5, delay: 0.2 }}
-        className="w-full md:w-[420px] bg-card flex flex-col"
+        className="w-full md:w-[420px] flex-1 flex flex-col min-h-0 bg-card"
         style={{ boxShadow: '-10px 0 40px rgba(0,0,0,0.2)' }}
       >
         {/* Chat Header */}
