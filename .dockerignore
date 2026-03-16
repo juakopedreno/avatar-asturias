@@ -1,0 +1,16 @@
+# No subir al build
+node_modules
+apps/*/node_modules
+packages/*/node_modules
+.git
+.env
+.env.*
+!.env.example
+*.log
+dist
+apps/web
+coverage
+.cursor
+.idea
+*.md
+!README.md

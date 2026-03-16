@@ -1,0 +1,35 @@
+CREATE TABLE IF NOT EXISTS users (
+  id UUID PRIMARY KEY,
+  email TEXT NOT NULL UNIQUE,
+  full_name TEXT NOT NULL,
+  role TEXT NOT NULL,
+  mfa_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS content_items (
+  id UUID PRIMARY KEY,
+  title TEXT NOT NULL,
+  category TEXT NOT NULL,
+  status TEXT NOT NULL,
+  author TEXT NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS sources (
+  id UUID PRIMARY KEY,
+  name TEXT NOT NULL,
+  type TEXT NOT NULL,
+  status TEXT NOT NULL,
+  connector_config JSONB NOT NULL,
+  last_sync_at TIMESTAMPTZ
+);
+
+CREATE TABLE IF NOT EXISTS audit_entries (
+  id UUID PRIMARY KEY,
+  actor TEXT NOT NULL,
+  module TEXT NOT NULL,
+  action TEXT NOT NULL,
+  detail TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);

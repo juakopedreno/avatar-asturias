@@ -1,0 +1,195 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  admin
+  editor
+  viewer
+  auditor
+}
+
+enum UserStatus {
+  active
+  inactive
+  pending
+}
+
+enum ContentStatus {
+  draft
+  review
+  published
+  archived
+}
+
+enum SourceType {
+  pdf
+  api
+  web
+  database
+  manual
+}
+
+enum SourceStatus {
+  synced
+  pending
+  error
+}
+
+enum IngestionSourceKind {
+  pdf
+  web
+  api
+}
+
+model User {
+  id            String          @id @default(uuid())
+  email         String          @unique
+  fullName      String
+  passwordHash  String
+  role          UserRole
+  status        UserStatus      @default(active)
+  mfaEnabled    Boolean         @default(false)
+  mfaSecret     String?
+  modules       String[]
+  lastLoginAt   DateTime?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  refreshTokens RefreshToken[]
+  sessions      Session[]
+}
+
+model Session {
+  id          String   @id @default(uuid())
+  userId      String
+  mfaVerified Boolean  @default(false)
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String
+  tokenHash String
+  revoked   Boolean  @default(false)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ContentItem {
+  id        String           @id @default(uuid())
+  title     String
+  category  String
+  status    ContentStatus
+  author    String
+  languages String[]
+  updatedAt DateTime         @default(now())
+  versions  ContentVersion[]
+}
+
+model ContentVersion {
+  id            String      @id @default(uuid())
+  contentItemId String
+  version       Int
+  payload       Json
+  createdAt     DateTime    @default(now())
+  contentItem   ContentItem @relation(fields: [contentItemId], references: [id], onDelete: Cascade)
+}
+
+model Source {
+  id            String         @id @default(uuid())
+  name          String
+  type          SourceType
+  status        SourceStatus   @default(pending)
+  connectorJson String
+  documents     Int            @default(0)
+  confidence    Int            @default(0)
+  lastSyncAt    DateTime?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  docs          SourceDocument[]
+  jobs          IngestionJob[]
+  chunks        KnowledgeChunk[]
+}
+
+model SourceDocument {
+  id        String   @id @default(uuid())
+  sourceId  String
+  title     String
+  uri       String
+  rawText   String
+  createdAt DateTime @default(now())
+  source    Source   @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+}
+
+model IngestionJob {
+  id           String              @id @default(uuid())
+  sourceId     String?
+  sourceKind   IngestionSourceKind
+  status       SourceStatus        @default(pending)
+  inputRef     String
+  outputChunks Int                 @default(0)
+  errorMessage String?
+  createdAt    DateTime            @default(now())
+  finishedAt   DateTime?
+  source       Source?             @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+}
+
+model KnowledgeChunk {
+  id          String   @id @default(uuid())
+  sourceId    String
+  sourceLabel String
+  text        String
+  embedding   Float[]  @default([])
+  updatedAt   DateTime @default(now())
+  source      Source   @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+}
+
+model Conversation {
+  id        String    @id @default(uuid())
+  language  String
+  createdAt DateTime  @default(now())
+  messages  Message[]
+}
+
+model Message {
+  id             String        @id @default(uuid())
+  conversationId String
+  role           String
+  content        String
+  createdAt      DateTime      @default(now())
+  conversation   Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  citations      Citation[]
+}
+
+model Citation {
+  id          String   @id @default(uuid())
+  messageId   String
+  sourceId    String
+  sourceLabel String
+  updatedAt   DateTime
+  message     Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+}
+
+model AuditEntry {
+  id        String   @id @default(uuid())
+  actor     String
+  module    String
+  action    String
+  detail    String
+  createdAt DateTime @default(now())
+}
+
+model SystemConfig {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  value     Json
+  updatedAt DateTime @updatedAt
+}
