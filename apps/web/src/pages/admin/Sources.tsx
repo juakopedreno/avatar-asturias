@@ -414,12 +414,21 @@ export default function Sources() {
               onClick={() => setShowCreateSource(false)}
             />
             <motion.div
-              initial={{ y: 10, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: 10, opacity: 0 }}
-              className="fixed left-1/2 top-1/2 z-50 w-[92vw] max-w-lg -translate-x-1/2 -translate-y-1/2 bg-card border border-border rounded-xl p-5"
-              style={{ boxShadow: '0 18px 45px rgba(0,0,0,0.18)' }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 flex items-center justify-center p-4"
+              role="dialog"
+              aria-modal="true"
             >
+              <motion.div
+                initial={{ y: 10, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                exit={{ y: 10, opacity: 0 }}
+                onClick={(e) => e.stopPropagation()}
+                className="w-full max-w-lg bg-card border border-border rounded-xl p-5"
+                style={{ boxShadow: '0 18px 45px rgba(0,0,0,0.18)' }}
+              >
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-semibold text-sm">Nueva Fuente</h3>
                 <button onClick={() => setShowCreateSource(false)} className="p-1 hover:bg-muted rounded transition-colors">
@@ -486,6 +495,7 @@ export default function Sources() {
                   </button>
                 </div>
               </div>
+              </motion.div>
             </motion.div>
           </>
         )}
