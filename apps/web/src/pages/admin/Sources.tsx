@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { RefreshCw, Plus, Globe, FileText, Database as DbIcon, Code, BookOpen, X, Trash2 } from 'lucide-react';
+import { RefreshCw, Plus, Globe, FileText, Database as DbIcon, Code, BookOpen, X, Trash2, Upload, Download } from 'lucide-react';
 import PageHeader from '@/components/shared/PageHeader';
 import StatusBadge from '@/components/shared/StatusBadge';
 import { useIngestionJobsData, useSourcesData } from '@/hooks/use-api-data';
@@ -47,6 +47,25 @@ export default function Sources() {
   const [sourceType, setSourceType] = useState<SourceItem['type']>('web');
   const [sourceConfig, setSourceConfig] = useState('');
   const [sourcePdfFile, setSourcePdfFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handlePdfDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files?.[0];
+    if (file?.type === 'application/pdf') setSourcePdfFile(file);
+  };
+
+  const handlePdfDragOver = (e: React.DragEvent) => e.preventDefault();
+
+  const downloadSelectedPdf = () => {
+    if (!sourcePdfFile) return;
+    const url = URL.createObjectURL(sourcePdfFile);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = sourcePdfFile.name;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   const uploadPdf = async (file: File) => {
     setSubmitting(true);
@@ -459,16 +478,59 @@ export default function Sources() {
                   <option value="manual">Manual</option>
                 </select>
                 {sourceType === 'pdf' ? (
-                  <div className="space-y-1">
+                  <div className="space-y-2">
                     <input
+                      ref={fileInputRef}
                       type="file"
                       accept=".pdf,application/pdf"
-                      onChange={(event) => setSourcePdfFile(event.target.files?.[0] ?? null)}
-                      className="w-full h-10 px-3 text-sm bg-muted/50 border border-border rounded-lg file:mr-3 file:border-0 file:bg-transparent file:text-sm"
+                      onChange={(e) => setSourcePdfFile(e.target.files?.[0] ?? null)}
+                      className="hidden"
                     />
-                    <p className="text-[11px] text-muted-foreground">
-                      Selecciona un PDF para crear la fuente e indexarlo directamente.
-                    </p>
+                    <div
+                      onDrop={handlePdfDrop}
+                      onDragOver={handlePdfDragOver}
+                      onClick={() => fileInputRef.current?.click()}
+                      className="border-2 border-dashed border-border rounded-xl p-6 bg-muted/30 hover:bg-muted/50 hover:border-primary/40 transition-colors cursor-pointer text-center"
+                    >
+                      {sourcePdfFile ? (
+                        <div className="flex flex-col items-center gap-2">
+                          <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
+                            <FileText className="w-6 h-6 text-primary" />
+                          </div>
+                          <p className="text-sm font-medium truncate max-w-full px-2">{sourcePdfFile.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {(sourcePdfFile.size / 1024).toFixed(1)} KB
+                          </p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
+                              className="text-xs text-primary hover:underline"
+                            >
+                              Cambiar archivo
+                            </button>
+                            <span className="text-muted-foreground">·</span>
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); downloadSelectedPdf(); }}
+                              className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                            >
+                              <Download className="w-3.5 h-3.5" /> Descargar
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center gap-2">
+                          <div className="w-12 h-12 rounded-lg bg-muted flex items-center justify-center">
+                            <Upload className="w-6 h-6 text-muted-foreground" />
+                          </div>
+                          <p className="text-sm font-medium text-foreground">Arrastra el PDF aquí o haz clic</p>
+                          <p className="text-[11px] text-muted-foreground">
+                            Solo archivos PDF. Se creará la fuente y se indexará el contenido.
+                          </p>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 ) : (
                   <input

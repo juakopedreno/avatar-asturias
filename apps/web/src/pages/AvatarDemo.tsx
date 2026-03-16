@@ -126,7 +126,45 @@ export default function AvatarDemo() {
       if (stt.detectedLanguage) {
         setLanguage(stt.detectedLanguage);
       }
-      setState('idle');
+      const question = (stt.text ?? '').trim();
+      if (question) {
+        setRequestError(null);
+        setSending(true);
+        setState('processing');
+        const userMessage: ChatMessage = {
+          id: crypto.randomUUID(),
+          role: 'user',
+          content: question,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        };
+        setMessages((prev) => [...prev, userMessage]);
+        setInputText('');
+        try {
+          const lang = stt.detectedLanguage ?? language;
+          const rag = await apiPost<{ answer: string; sources?: Array<{ sourceLabel: string }> }>('/rag/ask', {
+            question,
+            language: lang,
+          });
+          const assistantMessage: ChatMessage = {
+            id: crypto.randomUUID(),
+            role: 'assistant',
+            content: rag.answer,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            sources: rag.sources?.map((s) => s.sourceLabel) ?? [],
+          };
+          setMessages((prev) => [...prev, assistantMessage]);
+          await speakWithAvatar(rag.answer);
+          setState('responding');
+        } catch (err) {
+          setRequestError(err instanceof Error ? err.message : 'No se pudo obtener respuesta');
+          setState('idle');
+        } finally {
+          setSending(false);
+          setTimeout(() => setState('idle'), 700);
+        }
+      } else {
+        setState('idle');
+      }
     } catch (error) {
       setRequestError(error instanceof Error ? error.message : 'No se pudo transcribir el audio');
       setState('idle');

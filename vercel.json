@@ -4,6 +4,6 @@
   "installCommand": "npm ci",
   "framework": null,
   "rewrites": [
-    { "source": "/favicon.ico", "destination": "/favicon.svg" }
+    { "source": "/favicon.ico", "destination": "/favicon.svg?v=2" }
   ]
 }
