@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { load } from "cheerio";
 import { PrismaService } from "../../prisma/prisma.service";
+import { AlertsService } from "../alerts/alerts.service";
 import { ContentService } from "../content/content.service";
 import { SourcesService } from "../sources/sources.service";
 import { AskQuestionDto } from "./dto/ask-question.dto";
@@ -15,6 +16,7 @@ export class RagService {
     private readonly prisma: PrismaService,
     private readonly sourcesService: SourcesService,
     private readonly contentService: ContentService,
+    private readonly alertsService: AlertsService,
   ) {}
 
   async ingestPdf(sourceId: string, file: { originalname: string; buffer: Buffer }) {
@@ -217,7 +219,13 @@ export class RagService {
   async ask(dto: AskQuestionDto) {
     const normalized = this.normalizeForSearch(dto.question);
     if (this.isGreeting(normalized)) {
-      const greetingAnswer = this.getGreetingForLanguage(dto.language);
+      let greetingAnswer = this.getGreetingForLanguage(dto.language);
+      const activeAlerts = await this.alertsService.findActive();
+      const greetingAlerts = activeAlerts.filter((a) => a.showOnGreeting);
+      if (greetingAlerts.length > 0) {
+        const alertText = greetingAlerts.map((a) => `[Aviso] ${a.title}: ${a.message}`).join(" ");
+        greetingAnswer = `${greetingAnswer} ${alertText}`.trim();
+      }
       const conversation = await this.prisma.conversation.create({
         data: {
           language: dto.language,
@@ -258,6 +266,12 @@ export class RagService {
       .sort((a, b) => b.score - a.score)[0];
 
     if (bestControlled) {
+      let answer = bestControlled.controlled.answer;
+      const topicAlerts = await this.getAlertsMatchingQuestion(normalized);
+      if (topicAlerts.length > 0) {
+        const prefix = topicAlerts.map((a) => `[Aviso] ${a.title}: ${a.message}`).join(" ");
+        answer = `${prefix} ${answer}`.trim();
+      }
       const conversation = await this.prisma.conversation.create({
         data: { language: dto.language },
       });
@@ -265,7 +279,7 @@ export class RagService {
         data: { conversationId: conversation.id, role: "user", content: dto.question },
       });
       const assistantMessage = await this.prisma.message.create({
-        data: { conversationId: conversation.id, role: "assistant", content: bestControlled.controlled.answer },
+        data: { conversationId: conversation.id, role: "assistant", content: answer },
       });
       await this.prisma.citation.create({
         data: {
@@ -276,7 +290,7 @@ export class RagService {
         },
       });
       return {
-        answer: bestControlled.controlled.answer,
+        answer,
         uncertainty: false,
         sources: [
           {
@@ -314,8 +328,13 @@ export class RagService {
     const matched = scored.slice(0, 6).map((item) => item.chunk);
 
     if (matched.length === 0) {
-      const noSourceAnswer =
+      let noSourceAnswer =
         "No dispongo de una fuente fiable para esa consulta en este momento. Te recomiendo revisar los canales oficiales del Ayuntamiento.";
+      const topicAlerts = await this.getAlertsMatchingQuestion(normalized);
+      if (topicAlerts.length > 0) {
+        const prefix = topicAlerts.map((a) => `[Aviso] ${a.title}: ${a.message}`).join(" ");
+        noSourceAnswer = `${prefix} ${noSourceAnswer}`.trim();
+      }
       const conversation = await this.prisma.conversation.create({
         data: {
           language: dto.language,
@@ -343,6 +362,12 @@ export class RagService {
 
     const selectedForCitations = matched.slice(0, 3);
     const generated = await this.generateContextualAnswer(dto, matched);
+    let finalAnswer = generated.answer;
+    const topicAlerts = await this.getAlertsMatchingQuestion(normalized);
+    if (topicAlerts.length > 0) {
+      const prefix = topicAlerts.map((a) => `[Aviso] ${a.title}: ${a.message}`).join(" ");
+      finalAnswer = `${prefix} ${finalAnswer}`.trim();
+    }
     const conversation = await this.prisma.conversation.create({
       data: {
         language: dto.language,
@@ -359,7 +384,7 @@ export class RagService {
       data: {
         conversationId: conversation.id,
         role: "assistant",
-        content: generated.answer,
+        content: finalAnswer,
       },
     });
     await Promise.all(
@@ -375,7 +400,7 @@ export class RagService {
       ),
     );
     return {
-      answer: generated.answer,
+      answer: finalAnswer,
       uncertainty: generated.uncertainty,
       sources: selectedForCitations.map((chunk) => ({
         id: chunk.sourceId,
@@ -389,6 +414,24 @@ export class RagService {
       },
       conversationId: conversation.id,
     };
+  }
+
+  private async getAlertsMatchingQuestion(
+    normalizedQuestion: string,
+  ): Promise<Array<{ title: string; message: string }>> {
+    const active = await this.alertsService.findActive();
+    const matching: Array<{ title: string; message: string }> = [];
+    for (const alert of active) {
+      const keywords = alert.keywords ?? [];
+      for (const kw of keywords) {
+        const kwNorm = this.normalizeForSearch(kw);
+        if (kwNorm && normalizedQuestion.includes(kwNorm)) {
+          matching.push({ title: alert.title, message: alert.message });
+          break;
+        }
+      }
+    }
+    return matching;
   }
 
   listChunks() {

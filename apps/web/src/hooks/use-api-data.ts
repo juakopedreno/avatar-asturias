@@ -15,6 +15,13 @@ export function useContentData() {
   });
 }
 
+export function useAlertsData() {
+  return useQuery({
+    queryKey: ["alerts-data"],
+    queryFn: () => apiGet("/alerts"),
+  });
+}
+
 export function useSourcesData() {
   return useQuery({
     queryKey: ["sources-data"],

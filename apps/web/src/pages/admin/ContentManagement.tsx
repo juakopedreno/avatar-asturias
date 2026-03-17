@@ -1,11 +1,13 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Plus, Pencil, Trash2, X } from 'lucide-react';
+import { Search, Plus, Pencil, Trash2, X, Send, CheckCircle, Archive, RotateCcw } from 'lucide-react';
 import PageHeader from '@/components/shared/PageHeader';
 import StatusBadge from '@/components/shared/StatusBadge';
 import LanguageChip from '@/components/shared/LanguageChip';
 import { useContentData } from '@/hooks/use-api-data';
 import { apiPost, apiPatch, apiDelete } from '@/lib/api';
+import { useAuth } from '@/context/auth-context';
 
 type ControlledResponseItem = {
   id: string;
@@ -35,12 +37,31 @@ function truncate(s: string, max: number) {
 }
 
 export default function ContentManagement() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const { data, refetch } = useContentData();
+  const { auth } = useAuth();
+  const isAdmin = auth?.role === 'admin';
   const items = (data ?? []) as ControlledResponseItem[];
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [selectedItem, setSelectedItem] = useState<ControlledResponseItem | null>(null);
+  const [flowUpdatingId, setFlowUpdatingId] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [initialQuestionHandled, setInitialQuestionHandled] = useState(false);
+
+  useEffect(() => {
+    const question = searchParams.get('question');
+    if (question && !initialQuestionHandled) {
+      setCreateForm((prev) => ({ ...prev, question: decodeURIComponent(question) }));
+      setShowCreateModal(true);
+      setCreateError(null);
+      setInitialQuestionHandled(true);
+      setSearchParams((prev) => {
+        prev.delete('question');
+        return prev;
+      }, { replace: true });
+    }
+  }, [searchParams, initialQuestionHandled, setSearchParams]);
   const [editingItem, setEditingItem] = useState<ControlledResponseItem | null>(null);
   const [createSubmitting, setCreateSubmitting] = useState(false);
   const [editSubmitting, setEditSubmitting] = useState(false);
@@ -172,6 +193,21 @@ export default function ContentManagement() {
     }
   };
 
+  const setStatus = async (item: ControlledResponseItem, status: ControlledResponseItem['status']) => {
+    setFlowUpdatingId(item.id);
+    try {
+      await apiPatch(`/content/${item.id}`, { status });
+      const updated = { ...item, status };
+      if (selectedItem?.id === item.id) setSelectedItem(updated);
+      if (editingItem?.id === item.id) setEditForm((prev) => ({ ...prev, status }));
+      await refetch();
+    } catch {
+      // ignore; backend returns 403 for non-admin publish
+    } finally {
+      setFlowUpdatingId(null);
+    }
+  };
+
   const openEdit = (item: ControlledResponseItem) => {
     setEditingItem(item);
     setEditForm({
@@ -214,7 +250,7 @@ export default function ContentManagement() {
           />
         </div>
         <div className="flex items-center gap-1.5">
-          {['all', 'published', 'draft', 'archived'].map((s) => (
+          {['all', 'published', 'review', 'draft', 'archived'].map((s) => (
             <button
               key={s}
               onClick={() => setFilterStatus(s)}
@@ -222,7 +258,7 @@ export default function ContentManagement() {
                 filterStatus === s ? 'bg-primary/10 text-primary border border-primary/20' : 'bg-card border border-border text-muted-foreground hover:text-foreground'
               }`}
             >
-              {s === 'all' ? 'Todos' : s === 'published' ? 'Publicados' : s === 'draft' ? 'Borradores' : 'Archivados'}
+              {s === 'all' ? 'Todos' : s === 'published' ? 'Publicados' : s === 'review' ? 'Revisión' : s === 'draft' ? 'Borradores' : 'Archivados'}
             </button>
           ))}
         </div>
@@ -265,7 +301,49 @@ export default function ContentManagement() {
                   </td>
                   <td className="px-5 py-3.5 text-xs text-muted-foreground font-mono-data">{item.updatedAt}</td>
                   <td className="px-5 py-3.5" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex items-center justify-end gap-1">
+                    <div className="flex items-center justify-end gap-1 flex-wrap">
+                      {item.status === 'draft' && (
+                        <button
+                          className="p-1.5 rounded hover:bg-muted transition-colors disabled:opacity-50"
+                          onClick={() => void setStatus(item, 'review')}
+                          disabled={flowUpdatingId === item.id}
+                          title="Enviar a revisión"
+                        >
+                          <Send className="w-3.5 h-3.5 text-muted-foreground" />
+                        </button>
+                      )}
+                      {item.status === 'review' && (
+                        <>
+                          {isAdmin && (
+                            <button
+                              className="p-1.5 rounded hover:bg-muted transition-colors disabled:opacity-50"
+                              onClick={() => void setStatus(item, 'published')}
+                              disabled={flowUpdatingId === item.id}
+                              title="Publicar"
+                            >
+                              <CheckCircle className="w-3.5 h-3.5 text-green-600" />
+                            </button>
+                          )}
+                          <button
+                            className="p-1.5 rounded hover:bg-muted transition-colors disabled:opacity-50"
+                            onClick={() => void setStatus(item, 'draft')}
+                            disabled={flowUpdatingId === item.id}
+                            title="Devolver a borrador"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5 text-muted-foreground" />
+                          </button>
+                        </>
+                      )}
+                      {item.status === 'published' && (
+                        <button
+                          className="p-1.5 rounded hover:bg-muted transition-colors disabled:opacity-50"
+                          onClick={() => void setStatus(item, 'archived')}
+                          disabled={flowUpdatingId === item.id}
+                          title="Archivar"
+                        >
+                          <Archive className="w-3.5 h-3.5 text-muted-foreground" />
+                        </button>
+                      )}
                       <button
                         className="p-1.5 rounded hover:bg-muted transition-colors"
                         onClick={() => openEdit(item)}
@@ -386,7 +464,7 @@ export default function ContentManagement() {
                       >
                         <option value="draft">Borrador</option>
                         <option value="review">Revisión</option>
-                        <option value="published">Publicado</option>
+                        {isAdmin && <option value="published">Publicado</option>}
                         <option value="archived">Archivado</option>
                       </select>
                     </div>
@@ -512,7 +590,7 @@ export default function ContentManagement() {
                       >
                         <option value="draft">Borrador</option>
                         <option value="review">Revisión</option>
-                        <option value="published">Publicado</option>
+                        {isAdmin && <option value="published">Publicado</option>}
                         <option value="archived">Archivado</option>
                       </select>
                     </div>
@@ -619,6 +697,49 @@ export default function ContentManagement() {
                 <div>
                   <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Última actualización</label>
                   <p className="text-sm font-mono-data mt-1">{selectedItem.updatedAt}</p>
+                </div>
+                <div className="pt-3 border-t border-border">
+                  <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block mb-2">Acciones de flujo</label>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedItem.status === 'draft' && (
+                      <button
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-muted hover:bg-muted/80 rounded-lg transition-colors disabled:opacity-50"
+                        onClick={() => void setStatus(selectedItem, 'review')}
+                        disabled={flowUpdatingId === selectedItem.id}
+                      >
+                        <Send className="w-3.5 h-3.5" /> Enviar a revisión
+                      </button>
+                    )}
+                    {selectedItem.status === 'review' && (
+                      <>
+                        {isAdmin && (
+                          <button
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-green-600 text-white hover:bg-green-700 rounded-lg transition-colors disabled:opacity-50"
+                            onClick={() => void setStatus(selectedItem, 'published')}
+                            disabled={flowUpdatingId === selectedItem.id}
+                          >
+                            <CheckCircle className="w-3.5 h-3.5" /> Publicar
+                          </button>
+                        )}
+                        <button
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-muted hover:bg-muted/80 rounded-lg transition-colors disabled:opacity-50"
+                          onClick={() => void setStatus(selectedItem, 'draft')}
+                          disabled={flowUpdatingId === selectedItem.id}
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" /> Devolver a borrador
+                        </button>
+                      </>
+                    )}
+                    {selectedItem.status === 'published' && (
+                      <button
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-muted hover:bg-muted/80 rounded-lg transition-colors disabled:opacity-50"
+                        onClick={() => void setStatus(selectedItem, 'archived')}
+                        disabled={flowUpdatingId === selectedItem.id}
+                      >
+                        <Archive className="w-3.5 h-3.5" /> Archivar
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
               <div className="p-5 border-t border-border flex items-center gap-2">

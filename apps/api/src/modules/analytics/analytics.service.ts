@@ -193,12 +193,28 @@ export class AnalyticsService {
 
     const unresolvedQuestions = Array.from(unresolvedByQuestion.values())
       .sort((a, b) => b.count - a.count || b.lastAskedAt.getTime() - a.lastAskedAt.getTime())
-      .slice(0, 6)
+      .slice(0, 30)
       .map((row) => ({
         question: row.question,
         count: row.count,
         lastAsked: this.formatRelativeDay(row.lastAskedAt, now),
       }));
+
+    const frequentByNormalized = new Map<string, { question: string; count: number }>();
+    for (const message of messagesForTiming) {
+      if (message.role !== "user") continue;
+      const key = this.normalizeText(message.content);
+      if (!key) continue;
+      const current = frequentByNormalized.get(key);
+      if (current) {
+        current.count += 1;
+      } else {
+        frequentByNormalized.set(key, { question: message.content, count: 1 });
+      }
+    }
+    const frequentQuestions = Array.from(frequentByNormalized.values())
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 20);
 
     const topicRules = [
       { topic: "Playas y calas", keywords: ["playa", "cala", "chiringuito", "mar"] },
@@ -279,6 +295,7 @@ export class AnalyticsService {
       hourlyDistribution: hourlyCounts,
       qualityMetrics,
       unresolvedQuestions,
+      frequentQuestions,
       topTopics,
       languageDistribution,
       recentAlerts: unresolvedAssistantPairs.length > 0

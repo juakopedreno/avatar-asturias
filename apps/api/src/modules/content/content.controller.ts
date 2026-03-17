@@ -27,8 +27,8 @@ export class ContentController {
 
   @Patch(":id")
   @Roles("admin", "editor")
-  async update(@Param("id") id: string, @Body() dto: UpdateContentDto, @CurrentUser() user?: { email?: string }) {
-    return this.contentService.update(id, dto, user?.email);
+  async update(@Param("id") id: string, @Body() dto: UpdateContentDto, @CurrentUser() user?: { email?: string; role?: string }) {
+    return this.contentService.update(id, dto, user?.email, user?.role);
   }
 
   @Delete(":id")

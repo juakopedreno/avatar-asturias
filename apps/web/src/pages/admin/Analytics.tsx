@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
-import { MessageSquare, Clock, ThumbsUp, Globe, TrendingUp, Download, Calendar } from 'lucide-react';
+import { MessageSquare, Clock, ThumbsUp, Globe, TrendingUp, Download, Calendar, Plus } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import PageHeader from '@/components/shared/PageHeader';
 import StatsCard from '@/components/shared/StatsCard';
 import { useDashboardData } from '@/hooks/use-api-data';
@@ -30,6 +31,7 @@ export default function Analytics() {
   const qualityMetrics =
     (data?.qualityMetrics as Array<{ label: string; value: number; target: number }> | undefined) ?? [];
   const topTopics = (data?.topTopics as Array<{ topic: string; count: number; trend: string }> | undefined) ?? [];
+  const frequentQuestions = (data?.frequentQuestions as Array<{ question: string; count: number }> | undefined) ?? [];
   const maxHourlyValue = hourlyData.reduce((acc, row) => Math.max(acc, row.value), 0) || 1;
   const maxTopicCount = topTopics.reduce((acc, row) => Math.max(acc, row.count), 0) || 1;
   const conversationTrend = (statsData.conversationDelta ?? 0) >= 0 ? 'up' : 'down';
@@ -131,9 +133,38 @@ export default function Analytics() {
                   <p className="text-xs font-medium truncate">{q.question}</p>
                   <p className="text-[10px] text-muted-foreground mt-0.5">{q.count} veces · {q.lastAsked}</p>
                 </div>
+                <Link
+                  to={`/admin/content?question=${encodeURIComponent(q.question)}`}
+                  className="flex-shrink-0 inline-flex items-center gap-1 px-2 py-1 text-[10px] font-medium bg-primary text-primary-foreground rounded hover:opacity-90 transition-opacity"
+                >
+                  <Plus className="w-3 h-3" /> Crear respuesta controlada
+                </Link>
               </div>
             ))}
             {unresolvedQuestions.length === 0 ? <p className="text-xs text-muted-foreground">No hay preguntas pendientes en este periodo.</p> : null}
+          </div>
+        </motion.div>
+
+        {/* Preguntas más frecuentes */}
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.32 }} className="bg-card rounded-xl p-5 card-elevated">
+          <h3 className="text-sm font-semibold mb-4">Preguntas más frecuentes</h3>
+          <div className="space-y-2.5">
+            {frequentQuestions.map((q) => (
+              <div key={q.question} className="flex items-start gap-3 p-3 bg-muted/30 border border-border rounded-lg">
+                <MessageSquare className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium truncate">{q.question}</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">{q.count} veces</p>
+                </div>
+                <Link
+                  to={`/admin/content?question=${encodeURIComponent(q.question)}`}
+                  className="flex-shrink-0 inline-flex items-center gap-1 px-2 py-1 text-[10px] font-medium bg-primary text-primary-foreground rounded hover:opacity-90 transition-opacity"
+                >
+                  <Plus className="w-3 h-3" /> Añadir como respuesta controlada
+                </Link>
+              </div>
+            ))}
+            {frequentQuestions.length === 0 ? <p className="text-xs text-muted-foreground">Sin preguntas en este periodo.</p> : null}
           </div>
         </motion.div>
 

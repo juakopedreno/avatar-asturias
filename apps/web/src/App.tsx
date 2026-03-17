@@ -9,6 +9,7 @@ import AvatarDemo from "./pages/AvatarDemo";
 import AdminLayout from "./components/layout/AdminLayout";
 import Dashboard from "./pages/admin/Dashboard";
 import ContentManagement from "./pages/admin/ContentManagement";
+import Alerts from "./pages/admin/Alerts";
 import Sources from "./pages/admin/Sources";
 import Training from "./pages/admin/Training";
 import Analytics from "./pages/admin/Analytics";
@@ -54,6 +55,7 @@ const App = () => {
             <Route path="/admin" element={<AdminLayout />}>
               <Route index element={<Dashboard />} />
               <Route path="content" element={<ContentManagement />} />
+              <Route path="alerts" element={<Alerts />} />
               <Route path="sources" element={<Sources />} />
               <Route path="training" element={<Training />} />
               <Route path="analytics" element={<Analytics />} />

@@ -2,7 +2,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   LayoutDashboard, BookOpen, Database, MessageSquare,
-  BarChart3, ShieldCheck, Users, Settings, Bot, ChevronLeft, ChevronRight,
+  BarChart3, ShieldCheck, Users, Settings, Bot, ChevronLeft, ChevronRight, Bell,
 } from 'lucide-react';
 import logo from '@/assets/torremolinos-logo-alt.png';
 import { useState } from 'react';
@@ -10,6 +10,7 @@ import { useState } from 'react';
 const navigation = [
   { name: 'Dashboard', icon: LayoutDashboard, href: '/admin' },
   { name: 'Respuestas controladas', icon: BookOpen, href: '/admin/content' },
+  { name: 'Alertas y avisos', icon: Bell, href: '/admin/alerts' },
   { name: 'Fuentes', icon: Database, href: '/admin/sources' },
   { name: 'Entrenamiento', icon: MessageSquare, href: '/admin/training' },
   { name: 'Analítica', icon: BarChart3, href: '/admin/analytics' },

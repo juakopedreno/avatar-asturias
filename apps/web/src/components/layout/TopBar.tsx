@@ -5,6 +5,7 @@ import { useAuth } from '@/context/auth-context';
 const routeNames: Record<string, string> = {
   '/admin': 'Dashboard',
   '/admin/content': 'Gestión de Contenidos',
+  '/admin/alerts': 'Alertas y Avisos',
   '/admin/sources': 'Fuentes y Trazabilidad',
   '/admin/training': 'Entrenamiento',
   '/admin/analytics': 'Analítica Avanzada',

@@ -195,3 +195,16 @@ model SystemConfig {
   value     Json
   updatedAt DateTime @updatedAt
 }
+
+model ProactiveAlert {
+  id             String    @id @default(uuid())
+  title          String
+  message        String
+  keywords       String[]  @default([])
+  active         Boolean   @default(true)
+  showOnGreeting Boolean   @default(true)
+  startAt        DateTime?
+  endAt          DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}

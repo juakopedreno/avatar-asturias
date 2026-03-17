@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { AuditService } from "../audit/audit.service";
 import { PrismaService } from "../../prisma/prisma.service";
@@ -64,7 +64,7 @@ export class ContentService {
     return record;
   }
 
-  async update(id: string, dto: UpdateContentDto, actor?: string) {
+  async update(id: string, dto: UpdateContentDto, actor?: string, userRole?: string) {
     const record = await this.prisma.controlledResponse.findUnique({
       where: { id },
       include: {
@@ -78,6 +78,11 @@ export class ContentService {
       throw new NotFoundException("Contenido no encontrado.");
     }
 
+    let status = dto.status ?? record.status;
+    if (status === "published" && userRole !== "admin") {
+      throw new ForbiddenException("Solo un administrador puede publicar. Use el flujo: Enviar a revisión y que un admin publique.");
+    }
+
     const nextVersion = (record.versions[0]?.version ?? 0) + 1;
     const questionVariants = dto.questionVariants !== undefined ? dto.questionVariants : record.questionVariants;
     const updated = await this.prisma.controlledResponse.update({
@@ -88,7 +93,7 @@ export class ContentService {
         answer: dto.answer ?? record.answer,
         category: dto.category ?? record.category,
         languages: dto.languages ?? record.languages,
-        status: dto.status ?? record.status,
+        status,
         author: dto.author ?? record.author,
         updatedAt: new Date(),
         versions: {
@@ -100,7 +105,7 @@ export class ContentService {
               answer: dto.answer ?? record.answer,
               category: dto.category ?? record.category,
               languages: dto.languages ?? record.languages,
-              status: dto.status ?? record.status,
+              status,
               author: dto.author ?? record.author,
             } as Prisma.JsonObject,
           },

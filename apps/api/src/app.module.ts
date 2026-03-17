@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 import { ThrottlerModule } from "@nestjs/throttler";
+import { AlertsModule } from "./modules/alerts/alerts.module";
 import { AnalyticsModule } from "./modules/analytics/analytics.module";
 import { AuditModule } from "./modules/audit/audit.module";
 import { AvatarModule } from "./modules/avatar/avatar.module";
@@ -24,6 +25,7 @@ import { PrismaModule } from "./prisma/prisma.module";
     }),
     AuthModule,
     UsersRolesModule,
+    AlertsModule,
     ContentModule,
     SettingsModule,
     SourcesModule,
