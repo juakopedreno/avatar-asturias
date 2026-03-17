@@ -76,35 +76,32 @@ export default function Landing() {
             </div>
           </motion.div>
 
-          {/* Hero Visual: widget del avatar como en la demo */}
+          {/* Hero Visual */}
           <motion.div
             initial={{ opacity: 0, y: 40 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.3 }}
-            className="mt-16 flex justify-center"
+            className="mt-16 relative max-w-5xl mx-auto"
           >
-            <Link
-              to="/demo"
-              className="block w-full max-w-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-4 rounded-2xl"
-            >
-              <div className="rounded-2xl overflow-hidden border-2 border-primary/20 bg-primary shadow-xl shadow-primary/15 hover:border-primary/40 hover:shadow-primary/20 transition-all duration-300">
-                <div className="p-8 pb-6 flex flex-col items-center">
-                  <div className="w-28 h-28 rounded-full bg-primary-foreground/10 border-2 border-primary flex items-center justify-center mb-5 ring-4 ring-primary/20 animate-float">
-                    <Bot className="w-14 h-14 text-primary" strokeWidth={1.5} />
+            <div className="rounded-2xl overflow-hidden border border-border card-elevated bg-card">
+              <div className="bg-gradient-to-br from-foreground to-foreground/80 aspect-[16/9] flex items-center justify-center relative overflow-hidden">
+                <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.3) 1px, transparent 0)', backgroundSize: '32px 32px' }} />
+                <div className="relative z-10 text-center">
+                  <div className="w-32 h-32 mx-auto mb-6 rounded-full bg-primary/20 border-2 border-primary/40 flex items-center justify-center animate-float">
+                    <Bot className="w-16 h-16 text-primary" />
                   </div>
-                  <div className="flex items-center gap-3 px-5 py-2.5 rounded-full bg-primary/90 border border-primary text-primary-foreground w-full max-w-[280px]">
-                    <div className="w-2.5 h-2.5 bg-primary-foreground rounded-full animate-pulse shrink-0" />
-                    <span className="text-xs font-semibold tracking-widest flex-1 text-center">AVATAR DISPONIBLE</span>
-                    <Mic className="w-4 h-4 shrink-0 text-primary-foreground" />
+                  <div className="flex items-center gap-3 px-5 py-2.5 glass rounded-full mx-auto w-fit">
+                    <div className="w-2.5 h-2.5 bg-primary rounded-full animate-pulse-soft" />
+                    <span className="text-sm font-medium text-primary-foreground/90 tracking-wide">AVATAR DISPONIBLE</span>
+                    <Mic className="w-4 h-4 text-primary" />
                   </div>
-                </div>
-                <div className="px-5 py-3 border-t border-primary/20 bg-primary/5 flex items-center justify-center gap-2">
-                  <Globe className="w-4 h-4 text-primary" />
-                  <span className="text-xs font-medium text-foreground/80">ES · EN · DE · FR · IT · PT</span>
                 </div>
               </div>
-            </Link>
-            <p className="mt-4 text-sm text-muted-foreground text-center">Haz clic para probar el avatar en vivo</p>
+            </div>
+            <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 px-6 py-3 bg-card rounded-xl border border-border card-elevated flex items-center gap-3">
+              <Globe className="w-4 h-4 text-primary" />
+              <span className="text-xs font-medium">ES · EN · DE · FR · IT · PT</span>
+            </div>
           </motion.div>
         </div>
       </section>
