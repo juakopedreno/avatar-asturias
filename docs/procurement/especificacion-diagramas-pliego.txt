@@ -1,0 +1,36 @@
+Genera dos diagramas según las especificaciones siguientes. Puedes hacerlos en Mermaid, draw.io o el formato que prefieras.
+
+---
+
+DIAGRAMA 1: Esquema del stack tecnológico por capas
+
+Descripción para el pliego: diagrama simplificado con frontend, backend, base de datos, motor RAG, proveedor avatar, seguridad y módulos transversales.
+
+Contenido que debe aparecer:
+
+- Capa Frontend: Frontend (React / Vite). Interfaz ciudadana y panel de administración.
+- Capa Backend: Backend (NestJS). API REST, autenticación, orquestación.
+- Capa de datos: PostgreSQL, base de datos relacional.
+- Motor RAG: motor RAG con OpenAI, embeddings y retrieval.
+- Proveedor de avatar: Anam AI. Avatar digital, TTS, stream de vídeo.
+- Seguridad: JWT, MFA, CORS, Throttling.
+- Módulos transversales: Auditoría, Analítica, Exportación / Bundle.
+
+Relaciones: El frontend se comunica con el backend por HTTPS. El backend se conecta a la base de datos, al motor RAG y al proveedor de avatar. El backend utiliza seguridad (JWT, CORS) y los módulos transversales (Auditoría, Analítica, Exportación).
+
+---
+
+DIAGRAMA 2: Esquema de arquitectura funcional
+
+Descripción para el pliego: diagrama de arquitectura de alto nivel con separación entre canal ciudadano, backend, repositorio de conocimiento, analítica, auditoría y proveedor de avatar.
+
+Contenido que debe aparecer:
+
+- Bloque Canal ciudadano: Web / Kiosko (interfaz de consulta) y Entrada por voz (STT).
+- Bloque Backend: API NestJS (auth, sesiones, orquestación) y Chat / Bootstrap.
+- Bloque Repositorio de conocimiento: Fuentes (PDF, Web, API), Motor RAG (embeddings, retrieval), Contenidos manuales.
+- Bloque Analítica: Dashboard con métricas e informes.
+- Bloque Auditoría: Logs de actividad y trazabilidad.
+- Bloque Proveedor de avatar: Anam AI (stream, TTS).
+
+Flujo: La Web y la voz envían peticiones a la API. La API usa Chat y el motor RAG. El RAG se apoya en Fuentes y Contenidos. La API alimenta el Dashboard (analítica) y los Logs (auditoría). La API se comunica con Anam AI y la respuesta voz/vídeo vuelve al canal ciudadano.

@@ -9,7 +9,7 @@ import { useState } from 'react';
 
 const navigation = [
   { name: 'Dashboard', icon: LayoutDashboard, href: '/admin' },
-  { name: 'Contenidos', icon: BookOpen, href: '/admin/content' },
+  { name: 'Respuestas controladas', icon: BookOpen, href: '/admin/content' },
   { name: 'Fuentes', icon: Database, href: '/admin/sources' },
   { name: 'Entrenamiento', icon: MessageSquare, href: '/admin/training' },
   { name: 'Analítica', icon: BarChart3, href: '/admin/analytics' },

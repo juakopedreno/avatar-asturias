@@ -1,4 +1,4 @@
-import { ApiProperty } from "@nestjs/swagger";
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import { IsArray, IsIn, IsString, MinLength } from "class-validator";
 
 const statuses = ["draft", "review", "published", "archived"] as const;
@@ -7,7 +7,17 @@ export class CreateContentDto {
   @ApiProperty()
   @IsString()
   @MinLength(3)
-  title!: string;
+  question!: string;
+
+  @ApiPropertyOptional({ type: [String], default: [] })
+  @IsArray()
+  @IsString({ each: true })
+  questionVariants!: string[];
+
+  @ApiProperty()
+  @IsString()
+  @MinLength(1)
+  answer!: string;
 
   @ApiProperty()
   @IsString()

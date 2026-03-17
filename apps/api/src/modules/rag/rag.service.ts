@@ -1,16 +1,20 @@
 import { Injectable } from "@nestjs/common";
 import { load } from "cheerio";
 import { PrismaService } from "../../prisma/prisma.service";
+import { ContentService } from "../content/content.service";
 import { SourcesService } from "../sources/sources.service";
 import { AskQuestionDto } from "./dto/ask-question.dto";
 import { IngestApiDto } from "./dto/ingest-api.dto";
 import { IngestWebDto } from "./dto/ingest-web.dto";
+
+const CONTROLLED_RESPONSE_MIN_SCORE = 3;
 
 @Injectable()
 export class RagService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly sourcesService: SourcesService,
+    private readonly contentService: ContentService,
   ) {}
 
   async ingestPdf(sourceId: string, file: { originalname: string; buffer: Buffer }) {
@@ -245,6 +249,49 @@ export class RagService {
     }
 
     const tokens = this.tokenizeForSearch(normalized);
+    const published = await this.contentService.findAllPublished();
+    const controlledScores = published.map((cr) => {
+      const score = this.scoreControlledResponse(normalized, tokens, cr.question, cr.questionVariants ?? []);
+      return { controlled: cr, score };
+    });
+    const bestControlled = controlledScores
+      .filter((x) => x.score >= CONTROLLED_RESPONSE_MIN_SCORE)
+      .sort((a, b) => b.score - a.score)[0];
+
+    if (bestControlled) {
+      const conversation = await this.prisma.conversation.create({
+        data: { language: dto.language },
+      });
+      await this.prisma.message.create({
+        data: { conversationId: conversation.id, role: "user", content: dto.question },
+      });
+      const assistantMessage = await this.prisma.message.create({
+        data: { conversationId: conversation.id, role: "assistant", content: bestControlled.controlled.answer },
+      });
+      await this.prisma.citation.create({
+        data: {
+          messageId: assistantMessage.id,
+          sourceId: bestControlled.controlled.id,
+          sourceLabel: "Respuesta controlada",
+          updatedAt: bestControlled.controlled.updatedAt,
+        },
+      });
+      return {
+        answer: bestControlled.controlled.answer,
+        uncertainty: false,
+        sources: [
+          {
+            id: bestControlled.controlled.id,
+            label: "Respuesta controlada",
+            sourceLabel: "Respuesta controlada",
+            updatedAt: bestControlled.controlled.updatedAt,
+          },
+        ],
+        guardrails: { offTopicBlocked: false, personalDataUsedForTraining: false },
+        conversationId: conversation.id,
+      };
+    }
+
     const candidates = await this.prisma.knowledgeChunk.findMany({
       orderBy: { updatedAt: "desc" },
       take: 800,
@@ -483,6 +530,26 @@ export class RagService {
     if (language === "FR") return "frances";
     if (language === "DE") return "aleman";
     return "espanol";
+  }
+
+  private scoreControlledResponse(
+    normalizedUser: string,
+    userTokens: string[],
+    question: string,
+    questionVariants: string[],
+  ): number {
+    const toScore = [question, ...questionVariants];
+    let best = 0;
+    for (const q of toScore) {
+      const qNorm = this.normalizeForSearch(q);
+      let score = 0;
+      for (const token of userTokens) {
+        if (qNorm.includes(token)) score += 1;
+      }
+      if (qNorm.includes(normalizedUser) || normalizedUser.includes(qNorm)) score += 4;
+      if (score > best) best = score;
+    }
+    return best;
   }
 
   private normalizeForSearch(input: string): string {

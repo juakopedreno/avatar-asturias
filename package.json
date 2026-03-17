@@ -10,6 +10,7 @@
   "scripts": {
     "dev:web": "npm run dev -w @avatar/web",
     "dev:api": "npm run start:dev -w @avatar/api",
+    "db:deploy": "dotenv -e .env -- npm run db:deploy -w @avatar/api",
     "hardening:bootstrap": "bash ./scripts/hardening-bootstrap.sh",
     "hardening:smoke": "bash ./scripts/hardening-smoke.sh",
     "build": "npm run build --workspaces --if-present",
@@ -19,6 +20,7 @@
     "format:write": "prettier --write ."
   },
   "devDependencies": {
+    "dotenv-cli": "^7.4.2",
     "jsdom": "^29.0.0",
     "prettier": "^3.5.3"
   }

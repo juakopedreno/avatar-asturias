@@ -46,7 +46,7 @@ export class AnalyticsService {
         },
       }),
       this.prisma.source.count({ where: { status: "synced" } }),
-      this.prisma.contentItem.count(),
+      this.prisma.controlledResponse.count(),
       this.prisma.message.findMany({
         where: {
           role: "assistant",

@@ -83,24 +83,26 @@ model RefreshToken {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
-model ContentItem {
-  id        String           @id @default(uuid())
-  title     String
-  category  String
-  status    ContentStatus
-  author    String
-  languages String[]
-  updatedAt DateTime         @default(now())
-  versions  ContentVersion[]
+model ControlledResponse {
+  id               String                         @id @default(uuid())
+  question         String
+  questionVariants String[]                       @default([])
+  answer           String
+  category         String
+  status           ContentStatus
+  author           String
+  languages        String[]
+  updatedAt        DateTime                       @updatedAt
+  versions         ControlledResponseVersion[]
 }
 
-model ContentVersion {
-  id            String      @id @default(uuid())
-  contentItemId String
-  version       Int
-  payload       Json
-  createdAt     DateTime    @default(now())
-  contentItem   ContentItem @relation(fields: [contentItemId], references: [id], onDelete: Cascade)
+model ControlledResponseVersion {
+  id                    String             @id @default(uuid())
+  controlledResponseId  String
+  version               Int
+  payload               Json
+  createdAt             DateTime           @default(now())
+  controlledResponse    ControlledResponse @relation(fields: [controlledResponseId], references: [id], onDelete: Cascade)
 }
 
 model Source {
