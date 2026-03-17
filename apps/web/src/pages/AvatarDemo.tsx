@@ -701,7 +701,8 @@ export default function AvatarDemo() {
             <select
               value={language}
               onChange={(e) => setLanguage(e.target.value)}
-              className="bg-transparent text-xs text-primary-foreground/80 outline-none cursor-pointer"
+              className="bg-transparent text-xs text-primary-foreground outline-none cursor-pointer [&_option]:bg-card [&_option]:text-foreground"
+              title="Idioma de la respuesta (ES, EN, DE, FR)"
             >
               <option value="ES">Español</option>
               <option value="EN">English</option>

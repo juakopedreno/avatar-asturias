@@ -217,8 +217,7 @@ export class RagService {
   async ask(dto: AskQuestionDto) {
     const normalized = this.normalizeForSearch(dto.question);
     if (this.isGreeting(normalized)) {
-      const greetingAnswer =
-        "Hola, encantado de ayudarte. Puedo recomendarte playas, rutas, transporte, eventos y sitios para comer en Torremolinos. ¿Que te interesa?";
+      const greetingAnswer = this.getGreetingForLanguage(dto.language);
       const conversation = await this.prisma.conversation.create({
         data: {
           language: dto.language,
@@ -523,6 +522,20 @@ export class RagService {
       `Segun las fuentes disponibles, para tu consulta "${question}" ` +
       `la informacion relevante es: ${excerpt}${summary.length > 480 ? "..." : ""}`
     );
+  }
+
+  private getGreetingForLanguage(language: AskQuestionDto["language"]): string {
+    const greetings: Record<AskQuestionDto["language"], string> = {
+      ES:
+        "Hola, encantado de ayudarte. Puedo recomendarte playas, rutas, transporte, eventos y sitios para comer en Torremolinos. ¿Qué te interesa?",
+      EN:
+        "Hello, I'm happy to help. I can recommend beaches, routes, transport, events and places to eat in Torremolinos. What are you interested in?",
+      DE:
+        "Hallo, ich helfe Ihnen gern. Ich kann Strände, Routen, Verkehr, Veranstaltungen und Restaurants in Torremolinos empfehlen. Wofür interessieren Sie sich?",
+      FR:
+        "Bonjour, je suis ravi de vous aider. Je peux vous recommander des plages, des itinéraires, des transports, des événements et des restaurants à Torremolinos. Qu'est-ce qui vous intéresse?",
+    };
+    return greetings[language] ?? greetings.ES;
   }
 
   private resolveLanguageName(language: AskQuestionDto["language"]): string {
