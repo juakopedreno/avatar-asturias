@@ -1,9 +1,10 @@
-import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Mic, MicOff, Send, Globe, Bot, ArrowLeft, Volume2, X, FileText } from 'lucide-react';
 import { AnamEvent, createClient } from '@anam-ai/js-sdk';
 import { Link } from 'react-router-dom';
 import { useChatBootstrapData } from '@/hooks/use-api-data';
+import { useIsMobile } from '@/hooks/use-mobile';
 import PrtrFundingNotice from '@/components/shared/PrtrFundingNotice';
 import { apiPost, apiPostForm } from '@/lib/api';
 
@@ -64,6 +65,69 @@ export default function AvatarDemo() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordingStreamRef = useRef<MediaStream | null>(null);
   const audioChunksRef = useRef<BlobPart[]>([]);
+
+  const isMobile = useIsMobile();
+  const [mobileSheetExpanded, setMobileSheetExpanded] = useState(false);
+  const sheetDragStartY = useRef(0);
+  const sheetDragStartHeight = useRef(0);
+  const sheetHeightRef = useRef(140);
+  const [sheetHeight, setSheetHeight] = useState(140);
+  const isDraggingSheet = useRef(false);
+  const SHEET_MIN = 140;
+  const SHEET_MAX_VH = 78;
+
+  useEffect(() => {
+    if (!isMobile) return;
+    const maxPx = (window.innerHeight * SHEET_MAX_VH) / 100;
+    sheetHeightRef.current = mobileSheetExpanded ? maxPx : SHEET_MIN;
+    setSheetHeight(sheetHeightRef.current);
+  }, [isMobile, mobileSheetExpanded]);
+
+  useEffect(() => {
+    if (!isMobile) return;
+    const onResize = () => {
+      const maxPx = (window.innerHeight * SHEET_MAX_VH) / 100;
+      if (mobileSheetExpanded) {
+        sheetHeightRef.current = maxPx;
+        setSheetHeight(maxPx);
+      }
+    };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [isMobile, mobileSheetExpanded]);
+
+  const onSheetHandlePointerDown = useCallback((e: React.PointerEvent) => {
+    isDraggingSheet.current = true;
+    sheetDragStartY.current = e.clientY;
+    sheetDragStartHeight.current = sheetHeightRef.current;
+  }, []);
+
+  useEffect(() => {
+    if (!isMobile) return;
+    const maxPx = (window.innerHeight * SHEET_MAX_VH) / 100;
+    const onMove = (e: PointerEvent) => {
+      if (!isDraggingSheet.current) return;
+      const dy = e.clientY - sheetDragStartY.current;
+      const next = Math.max(SHEET_MIN, Math.min(maxPx, sheetDragStartHeight.current - dy));
+      sheetHeightRef.current = next;
+      setSheetHeight(next);
+    };
+    const onUp = () => {
+      if (!isDraggingSheet.current) return;
+      isDraggingSheet.current = false;
+      const mid = SHEET_MIN + (maxPx - SHEET_MIN) / 2;
+      const expanded = sheetHeightRef.current > mid;
+      setMobileSheetExpanded(expanded);
+      sheetHeightRef.current = expanded ? maxPx : SHEET_MIN;
+      setSheetHeight(sheetHeightRef.current);
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    return () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    };
+  }, [isMobile]);
 
   const cycleState = () => {
     const states: AvatarState[] = ['idle', 'listening', 'processing', 'responding'];
@@ -422,15 +486,113 @@ export default function AvatarDemo() {
     ? `linear-gradient(180deg, rgba(18, 24, 35, 0.2) 0%, rgba(18, 24, 35, 0.3) 100%), url(${sceneBackgroundImage}) center / cover no-repeat`
     : 'linear-gradient(180deg, hsl(210 42% 96%) 0%, hsl(208 46% 92%) 45%, hsl(206 44% 88%) 100%)';
 
+  const chatHeader = (
+    <div className="p-4 border-b border-border flex items-center justify-between flex-shrink-0">
+      <div>
+        <h2 className="font-semibold text-sm">Asistente Turístico</h2>
+        <p className="text-[11px] text-muted-foreground">Torremolinos · Siempre disponible</p>
+      </div>
+      <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 glass-dark rounded-lg px-2 py-1.5">
+          <Globe className="w-3.5 h-3.5 text-primary" />
+          <select
+            value={language}
+            onChange={(e) => setLanguage(e.target.value)}
+            className="bg-transparent text-xs text-primary-foreground/80 outline-none cursor-pointer"
+          >
+            <option value="ES">ES</option>
+            <option value="EN">EN</option>
+            <option value="DE">DE</option>
+            <option value="FR">FR</option>
+          </select>
+        </div>
+        <div className={`w-2 h-2 rounded-full ${stateColors[state]}`} title={stateLabels[state]} />
+        <Link to="/admin" className="text-[11px] text-primary font-medium hover:underline">Admin</Link>
+      </div>
+    </div>
+  );
+
+  const chatMessagesArea = (
+    <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
+      {messages.map((msg) => (
+        <motion.div
+          key={msg.id}
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+        >
+          <div className={`max-w-[85%] ${msg.role === 'user'
+            ? 'bg-muted rounded-2xl rounded-tr-sm p-4'
+            : 'bg-primary/5 border border-primary/10 rounded-2xl rounded-tl-sm p-4'
+          }`}>
+            <p className="text-sm leading-relaxed">{msg.content}</p>
+            {msg.role === 'assistant' && msg.sources && (
+              <div className="mt-3 pt-3 border-t border-border/50">
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <FileText className="w-3 h-3 text-primary" />
+                  <span className="text-[10px] uppercase tracking-wider font-semibold text-primary">Fuentes</span>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {msg.sources.map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => setShowSources(!showSources)}
+                      className="text-[10px] px-2 py-0.5 rounded bg-card border border-border hover:border-primary/30 transition-colors"
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            <span className="text-[10px] text-muted-foreground mt-2 block">{msg.timestamp}</span>
+          </div>
+        </motion.div>
+      ))}
+    </div>
+  );
+
+  const chatInput = (
+    <div className="p-4 bg-muted/30 border-t border-border flex-shrink-0">
+      <form className="relative" onSubmit={(event) => void sendMessage(event)}>
+        <input
+          value={inputText}
+          onChange={(e) => setInputText(e.target.value)}
+          placeholder="Haz una pregunta por voz o texto..."
+          className="w-full bg-card border border-border rounded-xl py-3.5 pl-4 pr-24 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all"
+        />
+        <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => void toggleVoiceRecording()}
+            className={`p-2 rounded-lg transition-colors ${recording ? 'bg-destructive text-destructive-foreground' : 'bg-muted hover:bg-muted/80 text-muted-foreground'}`}
+          >
+            {recording ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+          </button>
+          <button
+            type="submit"
+            disabled={sending || !inputText.trim()}
+            className="p-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50"
+          >
+            <Send className="w-4 h-4" />
+          </button>
+        </div>
+      </form>
+      {requestError ? <p className="text-xs text-destructive mt-2">{requestError}</p> : null}
+    </div>
+  );
+
   return (
     <div
-      className="flex flex-col md:flex-row h-screen overflow-hidden"
+      className="flex flex-col md:flex-row h-screen overflow-hidden relative"
       style={{
         background: sceneBackground,
       }}
     >
-      {/* Avatar Viewport: arriba en móvil, izquierda en desktop */}
-      <div className="relative flex-shrink-0 md:flex-1 flex flex-col items-center justify-end min-h-[280px] md:min-h-0 pb-4 md:pb-10 overflow-hidden">
+      {/* Avatar: en móvil ocupa toda la pantalla sin overlays; en desktop layout actual */}
+      <div className={`flex flex-col items-center justify-end overflow-hidden pb-4 md:pb-10
+        ${isMobile ? 'absolute inset-0 z-0' : 'relative flex-shrink-0 md:flex-1 min-h-[280px] md:min-h-0'}`}
+      >
         {/* Sun glow */}
         <div
           className="absolute top-12 left-1/2 -translate-x-1/2 w-[520px] h-[520px] rounded-full pointer-events-none"
@@ -491,7 +653,7 @@ export default function AvatarDemo() {
                 </div>
               </div>
             )}
-            <div className="absolute bottom-1 text-[11px] text-primary-foreground/70 z-10">
+            <div className="absolute bottom-1 text-[11px] text-primary-foreground/70 z-10 hidden md:block">
               Proveedor: {avatarSession?.provider ?? 'cargando...'} {avatarConnected ? '· conectado' : ''}
             </div>
           </div>
@@ -503,25 +665,24 @@ export default function AvatarDemo() {
           {avatarSession?.provider === 'anam' && avatarConnected && !audioEnabled ? (
             <button
               onClick={() => void enableAvatarAudio()}
-              className="mt-3 text-[11px] px-3 py-1.5 rounded-lg bg-primary/20 text-primary-foreground/90 border border-primary/30 hover:bg-primary/25 transition-colors"
+              className="mt-3 text-[11px] px-3 py-1.5 rounded-lg bg-primary/20 text-primary-foreground/90 border border-primary/30 hover:bg-primary/25 transition-colors hidden md:inline-flex"
             >
               Activar audio
             </button>
           ) : null}
 
-          {/* Status */}
+          {/* Status, sugerencias e idioma: solo en desktop para no tapar el avatar en móvil */}
           <motion.div
             key={state}
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            className="mt-4 md:mt-8 flex items-center gap-3 px-5 py-2.5 glass-dark rounded-full"
+            className="mt-4 md:mt-8 flex items-center gap-3 px-5 py-2.5 glass-dark rounded-full hidden md:flex"
           >
             <div className={`w-2.5 h-2.5 rounded-full ${stateColors[state]} ${state !== 'idle' ? 'animate-pulse-soft' : ''}`} />
             <span className="text-xs font-medium text-primary-foreground/80 tracking-widest uppercase">{stateLabels[state]}</span>
           </motion.div>
 
-          {/* Suggestions */}
-          <div className="mt-4 md:mt-8 flex flex-wrap gap-2 justify-center max-w-lg px-4">
+          <div className="mt-4 md:mt-8 flex flex-wrap gap-2 justify-center max-w-lg px-4 hidden md:flex">
             {suggestedQuestions.slice(0, 3).map((q) => (
               <button
                 key={q}
@@ -534,8 +695,7 @@ export default function AvatarDemo() {
           </div>
         </motion.div>
 
-        {/* Language Selector */}
-        <div className="absolute bottom-2 left-4 md:bottom-6 md:left-6 z-20">
+        <div className="absolute bottom-2 left-4 md:bottom-6 md:left-6 z-20 hidden md:block">
           <div className="flex items-center gap-2 glass-dark rounded-lg px-3 py-2">
             <Globe className="w-3.5 h-3.5 text-primary" />
             <select
@@ -555,15 +715,42 @@ export default function AvatarDemo() {
         </div>
       </div>
 
-      {/* Chat Panel: abajo en móvil, derecha en desktop */}
+      {/* Móvil: panel inferior arrastrable (solo input por defecto; arrastrar arriba para ver chat) */}
+      {isMobile && (
+        <motion.div
+          className="fixed bottom-0 left-0 right-0 z-20 bg-card rounded-t-2xl flex flex-col shadow-[0_-8px_30px_rgba(0,0,0,0.15)]"
+          style={{ height: `${sheetHeight}px` }}
+          initial={false}
+          transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+        >
+          <div
+            className="flex-shrink-0 pt-3 pb-2 flex flex-col items-center cursor-grab active:cursor-grabbing touch-none"
+            onPointerDown={onSheetHandlePointerDown}
+            onClick={() => setMobileSheetExpanded((e) => !e)}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => e.key === 'Enter' && setMobileSheetExpanded((x) => !x)}
+            aria-label={mobileSheetExpanded ? 'Cerrar chat' : 'Abrir chat'}
+          >
+            <div className="w-10 h-1 rounded-full bg-muted-foreground/30" />
+            <span className="text-[11px] text-muted-foreground mt-1.5">
+              {mobileSheetExpanded ? 'Desliza abajo para ver el avatar' : 'Desliza arriba para ver el chat'}
+            </span>
+          </div>
+          {mobileSheetExpanded && chatHeader}
+          {mobileSheetExpanded && chatMessagesArea}
+          <div className="flex-shrink-0 pb-[env(safe-area-inset-bottom,0px)]">{chatInput}</div>
+        </motion.div>
+      )}
+
+      {/* Chat Panel: solo en desktop (en móvil se usa el sheet de arriba) */}
       <motion.div
         initial={{ x: 100, opacity: 0 }}
         animate={{ x: 0, opacity: 1 }}
         transition={{ duration: 0.5, delay: 0.2 }}
-        className="w-full md:w-[420px] flex-1 flex flex-col min-h-0 bg-card"
+        className="hidden md:flex w-full md:w-[420px] flex-1 flex-col min-h-0 bg-card"
         style={{ boxShadow: '-10px 0 40px rgba(0,0,0,0.2)' }}
       >
-        {/* Chat Header */}
         <div className="p-5 border-b border-border flex items-center justify-between flex-shrink-0">
           <div>
             <h2 className="font-semibold text-sm">Asistente Turístico</h2>
@@ -576,47 +763,7 @@ export default function AvatarDemo() {
             <Link to="/admin" className="text-[11px] text-primary font-medium hover:underline">Admin</Link>
           </div>
         </div>
-
-        {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-4">
-          {messages.map((msg) => (
-            <motion.div
-              key={msg.id}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-            >
-              <div className={`max-w-[85%] ${msg.role === 'user'
-                ? 'bg-muted rounded-2xl rounded-tr-sm p-4'
-                : 'bg-primary/5 border border-primary/10 rounded-2xl rounded-tl-sm p-4'
-              }`}>
-                <p className="text-sm leading-relaxed">{msg.content}</p>
-                {msg.role === 'assistant' && msg.sources && (
-                  <div className="mt-3 pt-3 border-t border-border/50">
-                    <div className="flex items-center gap-1.5 mb-1.5">
-                      <FileText className="w-3 h-3 text-primary" />
-                      <span className="text-[10px] uppercase tracking-wider font-semibold text-primary">Fuentes</span>
-                    </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {msg.sources.map((s) => (
-                        <button
-                          key={s}
-                          onClick={() => setShowSources(!showSources)}
-                          className="text-[10px] px-2 py-0.5 rounded bg-card border border-border hover:border-primary/30 transition-colors"
-                        >
-                          {s}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                <span className="text-[10px] text-muted-foreground mt-2 block">{msg.timestamp}</span>
-              </div>
-            </motion.div>
-          ))}
-        </div>
-
-        {/* Input */}
+        {chatMessagesArea}
         <div className="p-5 bg-muted/30 border-t border-border flex-shrink-0">
           <form className="relative" onSubmit={(event) => void sendMessage(event)}>
             <input
