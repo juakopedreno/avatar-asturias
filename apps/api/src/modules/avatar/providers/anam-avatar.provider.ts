@@ -98,7 +98,7 @@ export class AnamAvatarProvider implements AvatarProvider {
     const maxLength = Number.parseInt(process.env.ANAM_MAX_SESSION_LENGTH_SECONDS ?? "", 10);
     return {
       personaConfig: {
-        name: process.env.ANAM_PERSONA_NAME ?? "Asistente Torremolinos",
+        name: process.env.ANAM_PERSONA_NAME ?? "Asistente SHA Bienestar",
         avatarId: process.env.ANAM_AVATAR_ID ?? "30fa96d0-26c4-4e55-94a0-517025942e18",
         ...(configuredModel === "cara-2" || configuredModel === "cara-3"
           ? { avatarModel: configuredModel }
@@ -107,7 +107,7 @@ export class AnamAvatarProvider implements AvatarProvider {
         ...(configuredLlmId ? { llmId: configuredLlmId } : {}),
         systemPrompt:
           process.env.ANAM_SYSTEM_PROMPT ??
-          "Eres el asistente oficial de turismo de Torremolinos. Responde con claridad y tono cercano.",
+          "Eres el asistente de salud y bienestar de SHA Wellness Clinic. Pronuncia exactamente el texto que te indiquen en cada turno; no improvises guías de turismo ni playas. Tono cálido y profesional.",
         languageCode: this.resolveLanguage(request.language),
         ...(Number.isFinite(maxLength) ? { maxSessionLengthSeconds: maxLength } : {}),
         ...(process.env.ANAM_SKIP_GREETING

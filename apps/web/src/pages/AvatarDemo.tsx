@@ -5,7 +5,7 @@ import { AnamEvent, createClient } from '@anam-ai/js-sdk';
 import { Link } from 'react-router-dom';
 import { useChatBootstrapData } from '@/hooks/use-api-data';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { apiPost, apiPostForm } from '@/lib/api';
+import { apiGet, apiPost, apiPostForm } from '@/lib/api';
 
 type AvatarState = 'idle' | 'listening' | 'processing' | 'responding';
 type SupportedLanguage = 'ES' | 'EN' | 'FR' | 'DE';
@@ -39,6 +39,15 @@ type AnamClientHandle = {
   stopStreaming?: () => void | Promise<void>;
 };
 
+type RealtimeBiometrics = {
+  connected: boolean;
+  heartRate?: number | null;
+  restingHeartRate?: number | null;
+  stepsToday?: number | null;
+  updatedAt?: string;
+  message?: string;
+};
+
 export default function AvatarDemo() {
   const { data } = useChatBootstrapData();
   const initialMessages = useMemo(
@@ -57,6 +66,8 @@ export default function AvatarDemo() {
   const [avatarConnected, setAvatarConnected] = useState(false);
   const [audioEnabled, setAudioEnabled] = useState(false);
   const [recording, setRecording] = useState(false);
+  const [biometrics, setBiometrics] = useState<RealtimeBiometrics | null>(null);
+  const [biometricsLoading, setBiometricsLoading] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const clientRef = useRef<AnamClientHandle | null>(null);
   const openingSessionRef = useRef(false);
@@ -141,6 +152,18 @@ export default function AvatarDemo() {
     }
   };
 
+  function buildWearablesSummary(): string | undefined {
+    const b = biometrics;
+    if (!b?.connected) return undefined;
+    const parts: string[] = [];
+    if (b.heartRate != null && b.heartRate > 0) parts.push(`Pulso reciente ~${b.heartRate} lpm`);
+    if (b.restingHeartRate != null && b.restingHeartRate > 0) {
+      parts.push(`En reposo ~${b.restingHeartRate} lpm`);
+    }
+    if (b.stepsToday != null) parts.push(`Pasos hoy ~${b.stepsToday}`);
+    return parts.length > 0 ? parts.join('. ') : undefined;
+  }
+
   const startVoiceRecording = async () => {
     if (recording) return;
     try {
@@ -207,6 +230,7 @@ export default function AvatarDemo() {
           const rag = await apiPost<{ answer: string; sources?: Array<{ sourceLabel: string }> }>('/rag/ask', {
             question,
             language: lang,
+            wearablesSummary: buildWearablesSummary(),
           });
           const assistantMessage: ChatMessage = {
             id: crypto.randomUUID(),
@@ -245,6 +269,35 @@ export default function AvatarDemo() {
   useEffect(() => {
     setMessages(initialMessages);
   }, [initialMessages]);
+
+  const loadBiometrics = async () => {
+    try {
+      setBiometricsLoading(true);
+      const realtime = await apiGet<RealtimeBiometrics>('/wearables/me/realtime');
+      setBiometrics(realtime);
+    } catch {
+      setBiometrics({ connected: false, message: 'No hay datos biométricos' });
+    } finally {
+      setBiometricsLoading(false);
+    }
+  };
+
+  const connectFitbit = async () => {
+    try {
+      const data = await apiGet<{ authUrl: string }>('/wearables/fitbit/connect');
+      window.open(data.authUrl, '_blank', 'width=720,height=720');
+    } catch (error) {
+      setRequestError(error instanceof Error ? error.message : 'No se pudo iniciar conexión Fitbit');
+    }
+  };
+
+  useEffect(() => {
+    void loadBiometrics();
+    const timer = window.setInterval(() => {
+      void loadBiometrics();
+    }, 30000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const inputLanguage = useMemo<SupportedLanguage>(() => {
     if (language === 'ES' || language === 'EN' || language === 'FR' || language === 'DE') {
@@ -444,6 +497,7 @@ export default function AvatarDemo() {
       }>('/rag/ask', {
         question,
         language: inputLanguage,
+        wearablesSummary: buildWearablesSummary(),
       });
 
       const assistantMessage: ChatMessage = {
@@ -614,6 +668,28 @@ export default function AvatarDemo() {
         <Link to="/" className="absolute top-6 left-6 z-20 flex items-center gap-2 px-4 py-2 glass rounded-lg text-sm text-primary-foreground/70 hover:text-primary-foreground transition-colors">
           <ArrowLeft className="w-4 h-4" /> Volver al inicio
         </Link>
+
+        <div className="absolute top-16 right-3 z-20 sm:top-14 sm:right-5 md:top-6 md:right-6 max-w-[min(240px,calc(100vw-1.5rem))]">
+          <div className="glass-dark rounded-xl px-2.5 py-1.5 md:px-3 md:py-2 min-w-0 border border-primary/20 shadow-lg">
+            <div className="flex items-center justify-between gap-1 mb-1">
+              <p className="text-[10px] md:text-[11px] text-primary-foreground/70 uppercase tracking-wider">Biometría</p>
+              <button
+                type="button"
+                onClick={() => void connectFitbit()}
+                className="text-[9px] md:text-[10px] shrink-0 px-1.5 py-0.5 rounded border border-primary/30 text-primary-foreground/80 hover:bg-primary/20 transition-colors"
+              >
+                Conectar Fitbit
+              </button>
+            </div>
+            <p className="text-[11px] md:text-xs text-primary-foreground">
+              Pulso: <span className="font-semibold">{biometrics?.heartRate ?? '—'} lpm</span>
+            </p>
+            <p className="text-[11px] md:text-xs text-primary-foreground/80">Pasos hoy: {biometrics?.stepsToday ?? '—'}</p>
+            <p className="text-[9px] md:text-[10px] text-primary-foreground/60 mt-0.5 leading-tight">
+              {biometricsLoading ? 'Actualizando…' : biometrics?.connected ? 'Conectado' : biometrics?.message ?? 'Sin conectar (pulsa Conectar)'}
+            </p>
+          </div>
+        </div>
 
         {/* Avatar */}
         <motion.div

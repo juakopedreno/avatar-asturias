@@ -219,7 +219,10 @@ export class RagService {
   async ask(dto: AskQuestionDto) {
     const normalized = this.normalizeForSearch(dto.question);
     if (this.isGreeting(normalized)) {
-      let greetingAnswer = this.getGreetingForLanguage(dto.language);
+      let greetingAnswer = this.appendWearablesToText(
+        this.getGreetingForLanguage(dto.language),
+        dto.wearablesSummary,
+      );
       const activeAlerts = await this.alertsService.findActive();
       const greetingAlerts = activeAlerts.filter((a) => a.showOnGreeting);
       if (greetingAlerts.length > 0) {
@@ -481,6 +484,9 @@ export class RagService {
 
     try {
       const languageName = this.resolveLanguageName(dto.language);
+      const wearablesBlock = dto.wearablesSummary?.trim()
+        ? `\nDatos de pulsera/biometría (orientativos, no sustituyen valoración médica):\n${dto.wearablesSummary.trim()}\n`
+        : "";
       const response = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -495,17 +501,21 @@ export class RagService {
             {
               role: "system",
               content:
-                `Eres el asistente oficial de turismo de Torremolinos. ` +
-                `Responde en ${languageName} con tono claro y breve. ` +
+                `Eres el asistente de salud y bienestar de SHA Wellness Clinic. ` +
+                `Responde en ${languageName} con tono claro, empático y breve. ` +
+                "Habla de hábitos, descanso, actividad, nutrición general y protocolos de bienestar según el contexto. " +
+                "No inventes diagnósticos ni recomiendes medicación; ante síntomas graves deriva a profesional. " +
                 "Usa solo el contexto proporcionado y no inventes datos. " +
-                "Si el contexto no alcanza para responder, dilo explicitamente y pide una aclaracion.",
+                "Si el contexto no alcanza, dilo y pide una aclaración. " +
+                "No ofrezcas guías de turismo, playas, transporte ni actividades de ocio de ciudad.",
             },
             {
               role: "user",
               content:
-                `Pregunta del usuario:\n${dto.question}\n\n` +
-                `Contexto recuperado:\n${context}\n\n` +
-                "Redacta una respuesta util para el usuario final.",
+                `Pregunta del usuario:\n${dto.question}\n` +
+                wearablesBlock +
+                `\nContexto recuperado:\n${context}\n\n` +
+                "Redacta una respuesta útil para el usuario final.",
             },
           ],
         }),
@@ -567,16 +577,24 @@ export class RagService {
     );
   }
 
+  private appendWearablesToText(base: string, wearables?: string): string {
+    const w = wearables?.trim();
+    if (!w) {
+      return base;
+    }
+    return `${base} (Contexto pulsera, orientativo: ${w})`.trim();
+  }
+
   private getGreetingForLanguage(language: AskQuestionDto["language"]): string {
     const greetings: Record<AskQuestionDto["language"], string> = {
       ES:
-        "Hola, encantado de ayudarte. Puedo recomendarte playas, rutas, transporte, eventos y sitios para comer en Torremolinos. ¿Qué te interesa?",
+        "Hola, soy tu asistente de bienestar de SHA. Puedo orientarte sobre descanso, actividad, manejo del estrés y cuidado integral con la información y protocolos disponibles. Cuéntame cómo te sientes o qué necesitas.",
       EN:
-        "Hello, I'm happy to help. I can recommend beaches, routes, transport, events and places to eat in Torremolinos. What are you interested in?",
+        "Hello, I'm your SHA wellness assistant. I can help with sleep, activity, stress management, and holistic care using the information and protocols we have. How are you feeling, or what do you need today?",
       DE:
-        "Hallo, ich helfe Ihnen gern. Ich kann Strände, Routen, Verkehr, Veranstaltungen und Restaurants in Torremolinos empfehlen. Wofür interessieren Sie sich?",
+        "Hallo, ich bin Ihr SHA-Wellness-Assistent. Ich kann zu Schlaf, Bewegung, Stressmanagement und ganzheitlicher Vorsorge anhand unserer Informationen und Protokolle beraten. Wie fühlen Sie sich, oder womit kann ich Ihnen helfen?",
       FR:
-        "Bonjour, je suis ravi de vous aider. Je peux vous recommander des plages, des itinéraires, des transports, des événements et des restaurants à Torremolinos. Qu'est-ce qui vous intéresse?",
+        "Bonjour, je suis votre assistant bien-être SHA. Je peux vous accompagner sur le sommeil, l'activité, le stress et les soins globaux d'après nos informations et protocoles. Comment vous sentez-vous, ou de quoi avez-vous besoin ?",
     };
     return greetings[language] ?? greetings.ES;
   }

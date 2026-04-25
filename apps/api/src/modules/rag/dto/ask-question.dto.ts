@@ -1,5 +1,5 @@
-import { ApiProperty } from "@nestjs/swagger";
-import { IsIn, IsString } from "class-validator";
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
+import { IsIn, IsOptional, IsString, MaxLength } from "class-validator";
 
 const languageCodes = ["ES", "EN", "FR", "DE"] as const;
 
@@ -12,4 +12,12 @@ export class AskQuestionDto {
   @IsString()
   @IsIn(languageCodes)
   language!: (typeof languageCodes)[number];
+
+  @ApiPropertyOptional({
+    description: "Resumen breve de biometría (p. ej. pulso y pasos) enviado por el cliente para contexto.",
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  wearablesSummary?: string;
 }

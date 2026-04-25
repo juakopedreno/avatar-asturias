@@ -15,6 +15,7 @@ import { SettingsModule } from "./modules/settings/settings.module";
 import { SttModule } from "./modules/stt/stt.module";
 import { TrainingModule } from "./modules/training/training.module";
 import { UsersRolesModule } from "./modules/users-roles/users-roles.module";
+import { WearablesModule } from "./modules/wearables/wearables.module";
 import { PrismaModule } from "./prisma/prisma.module";
 
 @Module({
@@ -25,6 +26,7 @@ import { PrismaModule } from "./prisma/prisma.module";
     }),
     AuthModule,
     UsersRolesModule,
+    WearablesModule,
     AlertsModule,
     ContentModule,
     SettingsModule,
