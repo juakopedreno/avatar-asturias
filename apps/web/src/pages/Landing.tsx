@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { Bot, Globe, Database, BarChart3, ShieldCheck, MessageSquare, Mic, ChevronRight, CheckCircle2, Zap, Lock, Languages } from 'lucide-react';
-import logo from '@/assets/torremolinos-logo.png';
+import logo from '@/assets/sha-logo.png';
 
 const features = [
   { icon: Bot, title: 'Avatar Hiperrealista', desc: 'Interacción natural por voz y texto con un avatar conversacional de última generación.' },
@@ -13,10 +13,10 @@ const features = [
 ];
 
 const useCases = [
-  { title: 'Oficinas de Turismo', desc: 'Atención 24/7 a turistas en su propio idioma, con información actualizada de la ciudad.' },
-  { title: 'Kioscos Interactivos', desc: 'Puntos de información en playas, plazas y centros urbanos con experiencia inmersiva.' },
-  { title: 'Portales Municipales', desc: 'Widget integrado en la web del ayuntamiento para consultas de trámites y servicios.' },
-  { title: 'Eventos y Ferias', desc: 'Asistente virtual en eventos culturales, ferias gastronómicas y festivales.' },
+  { title: 'Centros de bienestar', desc: 'Acompañamiento 24/7 a pacientes y huéspedes en su idioma con orientación de bienestar personalizada.' },
+  { title: 'Puntos de atención clínica', desc: 'Puntos de atención en recepción y zonas comunes con experiencia inmersiva y guiada.' },
+  { title: 'Portal de paciente', desc: 'Widget integrado en web y app para resolver dudas frecuentes de salud y bienestar.' },
+  { title: 'Programas y retiros wellness', desc: 'Asistente virtual para programas de bienestar, retiros y seguimiento personalizado.' },
 ];
 
 const fadeUp = {
@@ -34,7 +34,7 @@ export default function Landing() {
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <img src={logo} alt="Torremolinos" className="h-8" />
-            <span className="font-semibold text-foreground">CivicAvatar</span>
+            <span className="font-semibold text-foreground">SHA Wellness Avatar</span>
           </div>
           <div className="hidden md:flex items-center gap-8 text-sm text-muted-foreground">
             <a href="#features" className="hover:text-foreground transition-colors">Funcionalidades</a>
@@ -56,15 +56,14 @@ export default function Landing() {
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
             <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/8 border border-primary/15 text-primary text-xs font-medium mb-6">
               <Zap className="w-3.5 h-3.5" />
-              Plataforma de IA Conversacional para Ciudades
+              Asistente de salud conversacional
             </div>
             <h1 className="text-4xl md:text-6xl font-bold tracking-tight leading-[1.1] mb-6">
-              La voz inteligente<br />
-              <span className="text-gradient">de su ciudad</span>
+              Tu asistente visual<br />
+              <span className="text-gradient">para bienestar integral</span>
             </h1>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto mb-8 leading-relaxed">
-              CivicAvatar despliega un avatar conversacional hiperrealista que atiende a turistas y ciudadanos
-              en múltiples idiomas, con respuestas trazables basadas en fuentes oficiales verificadas.
+              Un asistente de salud con avatar hiperrealista para acompañar a pacientes y huéspedes con orientación de bienestar, hábitos saludables y atención personalizada, con respuestas trazables y seguras.
             </p>
             <div className="flex items-center justify-center gap-4">
               <Link to="/demo" className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-xl text-sm font-medium hover:opacity-90 transition-all shadow-lg shadow-primary/20">
@@ -110,8 +109,8 @@ export default function Landing() {
       <section id="features" className="py-20 px-6 bg-card/50">
         <div className="max-w-7xl mx-auto">
           <motion.div {...fadeUp} className="text-center mb-14">
-            <h2 className="text-3xl font-bold mb-3">Funcionalidades del Producto</h2>
-            <p className="text-muted-foreground max-w-xl mx-auto">Una plataforma completa para la atención turística y ciudadana inteligente.</p>
+            <h2 className="text-3xl font-bold mb-3">Funcionalidades de Salud Digital</h2>
+            <p className="text-muted-foreground max-w-xl mx-auto">Una plataforma completa para acompañamiento de bienestar y asistencia sanitaria digital.</p>
           </motion.div>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
             {features.map((f, i) => (
@@ -131,8 +130,8 @@ export default function Landing() {
       <section id="usecases" className="py-20 px-6">
         <div className="max-w-7xl mx-auto">
           <motion.div {...fadeUp} className="text-center mb-14">
-            <h2 className="text-3xl font-bold mb-3">Casos de Uso</h2>
-            <p className="text-muted-foreground max-w-xl mx-auto">Adaptable a diferentes contextos de atención pública y turística.</p>
+            <h2 className="text-3xl font-bold mb-3">Casos de Uso Clínico y Wellness</h2>
+            <p className="text-muted-foreground max-w-xl mx-auto">Adaptable a clínicas, centros wellness y entornos de atención preventiva.</p>
           </motion.div>
           <div className="grid md:grid-cols-2 gap-5">
             {useCases.map((uc, i) => (
@@ -154,8 +153,8 @@ export default function Landing() {
           <motion.div {...fadeUp} className="bg-gradient-to-br from-foreground to-foreground/90 rounded-2xl p-12 text-primary-foreground relative overflow-hidden">
             <div className="absolute inset-0 opacity-5" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.5) 1px, transparent 0)', backgroundSize: '24px 24px' }} />
             <div className="relative z-10">
-              <h2 className="text-2xl md:text-3xl font-bold mb-4">¿Listo para transformar la atención ciudadana?</h2>
-              <p className="text-primary-foreground/70 mb-8 max-w-lg mx-auto">Solicite una demo personalizada y descubra cómo CivicAvatar puede optimizar la comunicación de su municipio.</p>
+              <h2 className="text-2xl md:text-3xl font-bold mb-4">¿Listo para transformar la experiencia de salud y bienestar?</h2>
+              <p className="text-primary-foreground/70 mb-8 max-w-lg mx-auto">Solicite una demo personalizada y descubra cómo SHA Wellness Avatar puede optimizar la comunicación de su municipio.</p>
               <div className="flex items-center justify-center gap-4">
                 <Link to="/demo" className="px-6 py-3 bg-primary text-primary-foreground rounded-xl text-sm font-medium hover:opacity-90 transition-all">
                   Ver Demo Interactiva
@@ -174,7 +173,7 @@ export default function Landing() {
         <div className="max-w-7xl mx-auto flex items-center justify-between text-sm text-muted-foreground">
           <div className="flex items-center gap-3">
             <img src={logo} alt="Torremolinos" className="h-6" />
-            <span>CivicAvatar © 2026</span>
+            <span>SHA Wellness Avatar © 2026</span>
           </div>
           <div className="flex items-center gap-6">
             <span>Privacidad</span>

@@ -5,7 +5,6 @@ import { AnamEvent, createClient } from '@anam-ai/js-sdk';
 import { Link } from 'react-router-dom';
 import { useChatBootstrapData } from '@/hooks/use-api-data';
 import { useIsMobile } from '@/hooks/use-mobile';
-import PrtrFundingNotice from '@/components/shared/PrtrFundingNotice';
 import { apiPost, apiPostForm } from '@/lib/api';
 
 type AvatarState = 'idle' | 'listening' | 'processing' | 'responding';
@@ -489,8 +488,8 @@ export default function AvatarDemo() {
   const chatHeader = (
     <div className="p-4 border-b border-border flex items-center justify-between flex-shrink-0">
       <div>
-        <h2 className="font-semibold text-sm">Asistente Turístico</h2>
-        <p className="text-[11px] text-muted-foreground">Torremolinos · Siempre disponible</p>
+        <h2 className="font-semibold text-sm">Asistente de Salud</h2>
+        <p className="text-[11px] text-muted-foreground">SHA Wellness Clinic · Siempre disponible</p>
             </div>
       <div className="flex items-center gap-2">
         <div className="flex items-center gap-2 glass-dark rounded-lg px-2 py-1.5">
@@ -558,7 +557,7 @@ export default function AvatarDemo() {
         <input
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
-          placeholder="Haz una pregunta por voz o texto..."
+          placeholder="Cuéntame cómo te encuentras o qué necesitas..."
           className="w-full bg-card border border-border rounded-xl py-3.5 pl-4 pr-24 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all"
         />
         <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
@@ -613,7 +612,7 @@ export default function AvatarDemo() {
 
         {/* Back button */}
         <Link to="/" className="absolute top-6 left-6 z-20 flex items-center gap-2 px-4 py-2 glass rounded-lg text-sm text-primary-foreground/70 hover:text-primary-foreground transition-colors">
-          <ArrowLeft className="w-4 h-4" /> Volver
+          <ArrowLeft className="w-4 h-4" /> Volver al inicio
         </Link>
 
         {/* Avatar */}
@@ -659,7 +658,7 @@ export default function AvatarDemo() {
           </div>
           {avatarSession?.provider === 'anam' && !avatarConnected ? (
             <p className="mt-12 text-[11px] text-primary-foreground/60 max-w-md text-center">
-              Inicializando stream de avatar en tiempo real...
+              Inicializando asistente visual en tiempo real...
             </p>
           ) : null}
           {avatarSession?.provider === 'anam' && avatarConnected && !audioEnabled ? (
@@ -710,9 +709,6 @@ export default function AvatarDemo() {
               <option value="FR">Français</option>
             </select>
           </div>
-          <div className="mt-2 max-w-[360px]">
-            <PrtrFundingNotice compact />
-          </div>
         </div>
       </div>
 
@@ -735,7 +731,7 @@ export default function AvatarDemo() {
           >
             <div className="w-10 h-1 rounded-full bg-muted-foreground/30" />
             <span className="text-[11px] text-muted-foreground mt-1.5">
-              {mobileSheetExpanded ? 'Desliza abajo para ver el avatar' : 'Desliza arriba para ver el chat'}
+              {mobileSheetExpanded ? 'Desliza abajo para ver tu asistente' : 'Desliza arriba para abrir el chat de salud'}
             </span>
           </div>
           {mobileSheetExpanded && chatHeader}
@@ -754,8 +750,8 @@ export default function AvatarDemo() {
       >
         <div className="p-5 border-b border-border flex items-center justify-between flex-shrink-0">
           <div>
-            <h2 className="font-semibold text-sm">Asistente Turístico</h2>
-            <p className="text-[11px] text-muted-foreground">Torremolinos · Siempre disponible</p>
+            <h2 className="font-semibold text-sm">Asistente de Salud</h2>
+            <p className="text-[11px] text-muted-foreground">SHA Wellness Clinic · Siempre disponible</p>
           </div>
           <div className="flex items-center gap-2">
             <button className="p-1.5 rounded-lg hover:bg-muted transition-colors">
@@ -770,7 +766,7 @@ export default function AvatarDemo() {
             <input
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
-              placeholder="Haz una pregunta por voz o texto..."
+              placeholder="Cuéntame cómo te encuentras o qué necesitas..."
               className="w-full bg-card border border-border rounded-xl py-3.5 pl-4 pr-24 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all"
             />
             <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
@@ -816,7 +812,7 @@ export default function AvatarDemo() {
             style={{ boxShadow: '-8px 0 30px rgba(0,0,0,0.1)' }}
           >
             <div className="flex items-center justify-between mb-6">
-              <h3 className="font-semibold text-sm">Detalle de Fuentes</h3>
+              <h3 className="font-semibold text-sm">Detalle de Referencias</h3>
               <button onClick={() => setShowSources(false)} className="p-1 hover:bg-muted rounded transition-colors">
                 <X className="w-4 h-4" />
               </button>
@@ -825,18 +821,18 @@ export default function AvatarDemo() {
               <div className="p-4 bg-muted/50 rounded-xl border border-border">
                 <div className="flex items-center gap-2 mb-2">
                   <FileText className="w-4 h-4 text-primary" />
-                  <span className="text-sm font-medium">Guía de playas oficial</span>
+                  <span className="text-sm font-medium">Protocolo clínico de bienestar</span>
                 </div>
-                <p className="text-xs text-muted-foreground mb-2">PDF · 18 documentos · Confianza: 97%</p>
-                <p className="text-xs text-muted-foreground leading-relaxed">Última sincronización: 13/03/2026 10:00</p>
+                <p className="text-xs text-muted-foreground mb-2">PDF · 24 documentos · Confianza: 97%</p>
+                <p className="text-xs text-muted-foreground leading-relaxed">Última sincronización: 25/04/2026 09:30</p>
               </div>
               <div className="p-4 bg-muted/50 rounded-xl border border-border">
                 <div className="flex items-center gap-2 mb-2">
                   <Globe className="w-4 h-4 text-primary" />
-                  <span className="text-sm font-medium">Portal de Turismo</span>
+                  <span className="text-sm font-medium">Base de conocimiento médica</span>
                 </div>
-                <p className="text-xs text-muted-foreground mb-2">Web · 128 documentos · Confianza: 95%</p>
-                <p className="text-xs text-muted-foreground leading-relaxed">Última sincronización: 15/03/2026 06:00</p>
+                <p className="text-xs text-muted-foreground mb-2">Web · 142 documentos · Confianza: 95%</p>
+                <p className="text-xs text-muted-foreground leading-relaxed">Última sincronización: 25/04/2026 10:10</p>
               </div>
             </div>
           </motion.div>
