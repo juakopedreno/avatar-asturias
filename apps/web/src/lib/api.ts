@@ -2,7 +2,16 @@ const runtimeDefaultApiBaseUrl =
   typeof window !== "undefined"
     ? `${window.location.protocol}//${window.location.hostname}:3000/api`
     : "http://localhost:3000/api";
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? runtimeDefaultApiBaseUrl;
+
+/** Garantiza sufijo /api (Nest globalPrefix) si en Vercel pusiste solo el host de Railway. */
+function normalizeApiBaseUrl(raw: string): string {
+  const u = raw.trim().replace(/\/+$/, "");
+  return u.toLowerCase().endsWith("/api") ? u : `${u}/api`;
+}
+
+const API_BASE_URL = normalizeApiBaseUrl(
+  (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim() || runtimeDefaultApiBaseUrl,
+);
 const TOKEN_STORAGE_KEY = "avatar-admin-tokens";
 
 export type StoredTokens = {

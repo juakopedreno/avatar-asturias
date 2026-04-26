@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Logger } from "@nestjs/common";
 import { PrismaService } from "../../prisma/prisma.service";
 
 type FitbitTokens = {
@@ -19,6 +19,8 @@ type FitbitTokenResponse = {
 
 @Injectable()
 export class WearablesService {
+  private readonly logger = new Logger(WearablesService.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
   getFitbitConnectData() {
@@ -68,6 +70,21 @@ export class WearablesService {
   }
 
   async getRealtime(includeDiagnostics = false) {
+    try {
+      return await this.computeRealtimePayload(includeDiagnostics);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`getRealtime falló: ${msg}`);
+      return {
+        connected: false,
+        message: `No se pudo leer Fitbit: ${msg.slice(0, 200)}`,
+        source: "error",
+        ...(includeDiagnostics ? { diagnostics: { uncaughtError: msg } } : {}),
+      };
+    }
+  }
+
+  private async computeRealtimePayload(includeDiagnostics: boolean) {
     const accessToken = await this.getValidAccessToken();
     if (!accessToken) {
       return {
@@ -279,12 +296,18 @@ export class WearablesService {
     | { ok: true; status: number; body: any }
     | { ok: false; status: number; errorSnippet: string }
   > {
-    const response = await fetch(url, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        Accept: "application/json",
-      },
-    });
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          Accept: "application/json",
+        },
+      });
+    } catch (e) {
+      const m = e instanceof Error ? e.message : String(e);
+      return { ok: false, status: 0, errorSnippet: `fetch: ${m.slice(0, 200)}` };
+    }
     const status = response.status;
     const text = await response.text();
     if (!response.ok) {
@@ -294,8 +317,12 @@ export class WearablesService {
         errorSnippet: text.replace(/\s+/g, " ").slice(0, 240),
       };
     }
+    const trimmed = text.trim();
+    if (!trimmed) {
+      return { ok: true, status, body: {} };
+    }
     try {
-      return { ok: true, status, body: JSON.parse(text) as any };
+      return { ok: true, status, body: JSON.parse(trimmed) as any };
     } catch {
       return { ok: false, status, errorSnippet: "respuesta-no-json" };
     }
