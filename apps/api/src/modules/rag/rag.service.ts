@@ -487,6 +487,9 @@ export class RagService {
       const wearablesBlock = dto.wearablesSummary?.trim()
         ? `\nDatos de pulsera/biometría (orientativos, no sustituyen valoración médica):\n${dto.wearablesSummary.trim()}\n`
         : "";
+      const wearableSystemHint = dto.wearablesSummary?.trim()
+        ? " Si hay datos de pulsera, enlázalos de forma explícita con 1–3 recomendaciones concretas de bienestar (sin alarmismo ni diagnósticos)."
+        : "";
       const response = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -507,7 +510,8 @@ export class RagService {
                 "No inventes diagnósticos ni recomiendes medicación; ante síntomas graves deriva a profesional. " +
                 "Usa solo el contexto proporcionado y no inventes datos. " +
                 "Si el contexto no alcanza, dilo y pide una aclaración. " +
-                "No ofrezcas guías de turismo, playas, transporte ni actividades de ocio de ciudad.",
+                "No ofrezcas guías de turismo, playas, transporte ni actividades de ocio de ciudad." +
+                wearableSystemHint,
             },
             {
               role: "user",

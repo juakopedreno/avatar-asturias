@@ -1,6 +1,6 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Mic, MicOff, Send, Globe, Bot, ArrowLeft, Volume2, X, FileText } from 'lucide-react';
+import { Mic, MicOff, Send, Globe, Bot, ArrowLeft, Volume2, X, FileText, ChevronDown, ChevronUp } from 'lucide-react';
 import { AnamEvent, createClient } from '@anam-ai/js-sdk';
 import { Link } from 'react-router-dom';
 import { useChatBootstrapData } from '@/hooks/use-api-data';
@@ -50,6 +50,16 @@ type RealtimeBiometrics = {
   note?: string;
   /** true si el valor viene de serie intradía; false si es pulso en reposo / resumen */
   heartRateFromIntraday?: boolean;
+  caloriesOut?: number | null;
+  distanceKm?: number | null;
+  floors?: number | null;
+  veryActiveMinutes?: number | null;
+  fairlyActiveMinutes?: number | null;
+  lightlyActiveMinutes?: number | null;
+  sedentaryMinutes?: number | null;
+  sleepDateLast?: string | null;
+  sleepMinutesLast?: number | null;
+  sleepEfficiencyLast?: number | null;
 };
 
 export default function AvatarDemo() {
@@ -72,6 +82,7 @@ export default function AvatarDemo() {
   const [recording, setRecording] = useState(false);
   const [biometrics, setBiometrics] = useState<RealtimeBiometrics | null>(null);
   const [biometricsLoading, setBiometricsLoading] = useState(false);
+  const [biometricsExpanded, setBiometricsExpanded] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const clientRef = useRef<AnamClientHandle | null>(null);
   const openingSessionRef = useRef(false);
@@ -160,12 +171,33 @@ export default function AvatarDemo() {
     const b = biometrics;
     if (!b?.connected) return undefined;
     const parts: string[] = [];
-    if (b.heartRate != null && b.heartRate > 0) parts.push(`Pulso reciente ~${b.heartRate} lpm`);
-    if (b.restingHeartRate != null && b.restingHeartRate > 0) {
-      parts.push(`En reposo ~${b.restingHeartRate} lpm`);
+    if (b.heartRate != null && b.heartRate > 0) {
+      parts.push(
+        b.heartRateFromIntraday === false
+          ? `pulso en reposo ~${b.heartRate} lpm`
+          : `pulso ~${b.heartRate} lpm`,
+      );
     }
-    if (b.stepsToday != null) parts.push(`Pasos hoy ~${b.stepsToday}`);
-    return parts.length > 0 ? parts.join('. ') : undefined;
+    if (b.restingHeartRate != null && b.restingHeartRate > 0) {
+      parts.push(`reposo registrado ~${b.restingHeartRate} lpm`);
+    }
+    if (b.stepsToday != null) parts.push(`pasos hoy ~${b.stepsToday}`);
+    if (b.caloriesOut != null) parts.push(`calorías gastadas hoy ~${b.caloriesOut} kcal`);
+    if (b.distanceKm != null && b.distanceKm > 0) parts.push(`distancia ~${b.distanceKm} km`);
+    if (b.floors != null && b.floors > 0) parts.push(`plantas ~${b.floors}`);
+    const act: string[] = [];
+    if (b.veryActiveMinutes != null && b.veryActiveMinutes > 0) act.push(`muy activo ${b.veryActiveMinutes} min`);
+    if (b.fairlyActiveMinutes != null && b.fairlyActiveMinutes > 0) act.push(`moderado ${b.fairlyActiveMinutes} min`);
+    if (b.lightlyActiveMinutes != null && b.lightlyActiveMinutes > 0) act.push(`ligero ${b.lightlyActiveMinutes} min`);
+    if (act.length) parts.push(`actividad: ${act.join(', ')}`);
+    if (b.sedentaryMinutes != null && b.sedentaryMinutes > 0) parts.push(`sedentario ~${b.sedentaryMinutes} min`);
+    if (b.sleepMinutesLast != null && b.sleepMinutesLast > 0) {
+      const ef = b.sleepEfficiencyLast != null ? `, eficiencia sueño ~${b.sleepEfficiencyLast}%` : '';
+      const dt = b.sleepDateLast ? ` noche ${b.sleepDateLast}` : '';
+      parts.push(`último sueño ~${b.sleepMinutesLast} min${ef}${dt}`);
+    }
+    if (parts.length === 0) return undefined;
+    return `Datos orientativos de pulsera: ${parts.join('; ')}.`;
   }
 
   const startVoiceRecording = async () => {
@@ -302,6 +334,10 @@ export default function AvatarDemo() {
     }, 30000);
     return () => window.clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    if (biometrics && !biometrics.connected) setBiometricsExpanded(false);
+  }, [biometrics?.connected]);
 
   const inputLanguage = useMemo<SupportedLanguage>(() => {
     if (language === 'ES' || language === 'EN' || language === 'FR' || language === 'DE') {
@@ -686,17 +722,32 @@ export default function AvatarDemo() {
           <ArrowLeft className="w-4 h-4" /> Volver al inicio
         </Link>
 
-        <div className="absolute top-16 right-3 z-30 sm:top-14 sm:right-5 md:top-6 md:right-6 max-w-[min(240px,calc(100vw-1.5rem))]">
+        <div
+          className={`absolute top-16 right-3 z-30 sm:top-14 sm:right-5 md:top-6 md:right-6 max-w-[min(260px,calc(100vw-1.5rem))] ${biometricsExpanded ? 'max-h-[min(72vh,480px)] overflow-y-auto' : ''}`}
+        >
           <div className="glass-dark rounded-xl px-2.5 py-1.5 md:px-3 md:py-2 min-w-0 border border-primary/20 shadow-lg ring-1 ring-white/10">
             <div className="flex items-center justify-between gap-1 mb-1">
               <p className="text-[10px] md:text-[11px] text-primary-foreground/70 uppercase tracking-wider">Biometría</p>
-              <button
-                type="button"
-                onClick={() => void connectFitbit()}
-                className="text-[9px] md:text-[10px] shrink-0 px-1.5 py-0.5 rounded border border-primary/30 text-primary-foreground/80 hover:bg-primary/20 transition-colors"
-              >
-                Conectar Fitbit
-              </button>
+              <div className="flex items-center gap-0.5 shrink-0">
+                {biometrics?.connected ? (
+                  <button
+                    type="button"
+                    aria-expanded={biometricsExpanded}
+                    title={biometricsExpanded ? 'Ver menos' : 'Ver más datos'}
+                    onClick={() => setBiometricsExpanded((v) => !v)}
+                    className="p-1 rounded border border-primary/30 text-primary-foreground/90 hover:bg-primary/20 transition-colors"
+                  >
+                    {biometricsExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => void connectFitbit()}
+                  className="text-[9px] md:text-[10px] shrink-0 px-1.5 py-0.5 rounded border border-primary/30 text-primary-foreground/80 hover:bg-primary/20 transition-colors"
+                >
+                  Conectar Fitbit
+                </button>
+              </div>
             </div>
             <p className="text-[11px] md:text-xs text-primary-foreground">
               Pulso: <span className="font-semibold">{biometrics?.heartRate ?? '—'} lpm</span>
@@ -712,6 +763,40 @@ export default function AvatarDemo() {
                   ? (biometrics.note ?? 'Conectado')
                   : (biometrics?.message ?? 'Sin conectar (pulsa Conectar)')}
             </p>
+            {biometricsExpanded && biometrics?.connected ? (
+              <div className="mt-2 pt-2 border-t border-white/15 space-y-1 text-[10px] text-primary-foreground/90">
+                <p className="text-primary-foreground/55 text-[9px] uppercase tracking-wide">Más desde Fitbit</p>
+                <p>Calorías (hoy): {biometrics.caloriesOut ?? '—'} kcal</p>
+                <p>Distancia: {biometrics.distanceKm != null ? `${biometrics.distanceKm} km` : '—'}</p>
+                <p>Plantas: {biometrics.floors ?? '—'}</p>
+                <p>
+                  Activo: muy {biometrics.veryActiveMinutes ?? '—'} · moderado {biometrics.fairlyActiveMinutes ?? '—'} · ligero{' '}
+                  {biometrics.lightlyActiveMinutes ?? '—'} min
+                </p>
+                <p>Sedentario: {biometrics.sedentaryMinutes != null ? `${biometrics.sedentaryMinutes} min` : '—'}</p>
+                <p>
+                  Último sueño:{' '}
+                  {biometrics.sleepMinutesLast != null
+                    ? `${biometrics.sleepMinutesLast} min${biometrics.sleepEfficiencyLast != null ? ` · ${biometrics.sleepEfficiencyLast}% ef.` : ''}${biometrics.sleepDateLast ? ` (${biometrics.sleepDateLast})` : ''}`
+                    : '—'}
+                </p>
+                <p className="text-primary-foreground/55 text-[9px] leading-snug pt-1">
+                  Cada mensaje al asistente incluye un resumen de estos datos para recomendaciones personalizadas.
+                </p>
+                <button
+                  type="button"
+                  className="w-full mt-1 text-[10px] py-1.5 rounded-lg bg-primary/25 border border-primary/35 text-primary-foreground hover:bg-primary/35 transition-colors"
+                  onClick={() => {
+                    setInputText(
+                      'Con los datos de mi pulsera de hoy, ¿qué recomendaciones de bienestar me das y qué debería vigilar?',
+                    );
+                    if (isMobile) setMobileSheetExpanded(true);
+                  }}
+                >
+                  Pregunta sugerida para el asistente
+                </button>
+              </div>
+            ) : null}
           </div>
         </div>
 

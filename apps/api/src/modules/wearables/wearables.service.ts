@@ -124,16 +124,95 @@ export class WearablesService {
         ? "Sin dato de pulso: sincroniza la pulsera con la app Fitbit; el reposo puede aparecer al día siguiente."
         : undefined;
 
+    const activityJson = await this.fitbitGetOptional(
+      "https://api.fitbit.com/1/user/-/activities/date/today.json",
+      accessToken,
+    );
+    const summary = activityJson?.summary as Record<string, unknown> | undefined;
+    const caloriesOut = this.nonNegativeInt(summary?.caloriesOut);
+    const floors = this.nonNegativeInt(summary?.floors);
+    const veryActiveMinutes = this.nonNegativeInt(summary?.veryActiveMinutes);
+    const fairlyActiveMinutes = this.nonNegativeInt(summary?.fairlyActiveMinutes);
+    const lightlyActiveMinutes = this.nonNegativeInt(summary?.lightlyActiveMinutes);
+    const sedentaryMinutes = this.nonNegativeInt(summary?.sedentaryMinutes);
+    let distanceKm: number | null = null;
+    const distances = summary?.distances;
+    if (Array.isArray(distances)) {
+      const total = distances.find(
+        (x: unknown) =>
+          x &&
+          typeof x === "object" &&
+          (x as { activity?: string }).activity === "total",
+      ) as { distance?: unknown } | undefined;
+      if (total?.distance != null) {
+        const d = Number(total.distance);
+        if (Number.isFinite(d) && d >= 0) {
+          distanceKm = Math.round(d * 1000) / 1000;
+        }
+      }
+    }
+
+    const afterSleep = new Date();
+    afterSleep.setUTCDate(afterSleep.getUTCDate() - 21);
+    const afterSleepStr = afterSleep.toISOString().slice(0, 10);
+    const sleepJson = await this.fitbitGetOptional(
+      `https://api.fitbit.com/1.2/user/-/sleep/list.json?beforeDate=today&afterDate=${afterSleepStr}&sort=desc&limit=1`,
+      accessToken,
+    );
+    let sleepDateLast: string | null = null;
+    let sleepMinutesLast: number | null = null;
+    let sleepEfficiencyLast: number | null = null;
+    const sleepArr = sleepJson?.sleep;
+    if (Array.isArray(sleepArr) && sleepArr.length > 0) {
+      const sl = sleepArr[0] as Record<string, unknown>;
+      if (typeof sl.dateOfSleep === "string") {
+        sleepDateLast = sl.dateOfSleep;
+      }
+      sleepMinutesLast = this.nonNegativeInt(sl.minutesAsleep);
+      sleepEfficiencyLast = this.nonNegativeInt(sl.efficiency);
+    }
+
     return {
       connected: true,
       heartRate,
       restingHeartRate: restingHr,
       stepsToday,
       heartRateFromIntraday: latestIntraday != null,
+      caloriesOut,
+      distanceKm,
+      floors,
+      veryActiveMinutes,
+      fairlyActiveMinutes,
+      lightlyActiveMinutes,
+      sedentaryMinutes,
+      sleepDateLast,
+      sleepMinutesLast,
+      sleepEfficiencyLast,
       updatedAt: new Date().toISOString(),
       source: "fitbit",
       ...(note ? { note } : {}),
     };
+  }
+
+  private nonNegativeInt(value: unknown): number | null {
+    if (typeof value === "number" && Number.isFinite(value) && value >= 0) {
+      return Math.round(value);
+    }
+    if (typeof value === "string" && value.trim() !== "") {
+      const n = Number.parseInt(value, 10);
+      if (Number.isFinite(n) && n >= 0) {
+        return n;
+      }
+    }
+    return null;
+  }
+
+  private async fitbitGetOptional(url: string, accessToken: string): Promise<any | null> {
+    try {
+      return await this.fitbitGet(url, accessToken);
+    } catch {
+      return null;
+    }
   }
 
   private coalescePositiveInt(value: unknown): number | null {

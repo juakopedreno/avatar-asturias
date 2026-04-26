@@ -18,6 +18,6 @@ export class AskQuestionDto {
   })
   @IsOptional()
   @IsString()
-  @MaxLength(2000)
+  @MaxLength(6000)
   wearablesSummary?: string;
 }
