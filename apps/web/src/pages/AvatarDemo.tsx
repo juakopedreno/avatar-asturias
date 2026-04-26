@@ -46,6 +46,8 @@ type RealtimeBiometrics = {
   stepsToday?: number | null;
   updatedAt?: string;
   message?: string;
+  /** Aviso cuando hay conexión pero Fitbit no devolvió pulso */
+  note?: string;
   /** true si el valor viene de serie intradía; false si es pulso en reposo / resumen */
   heartRateFromIntraday?: boolean;
 };
@@ -704,7 +706,11 @@ export default function AvatarDemo() {
             </p>
             <p className="text-[11px] md:text-xs text-primary-foreground/80">Pasos hoy: {biometrics?.stepsToday ?? '—'}</p>
             <p className="text-[9px] md:text-[10px] text-primary-foreground/60 mt-0.5 leading-tight">
-              {biometricsLoading ? 'Actualizando…' : biometrics?.connected ? 'Conectado' : biometrics?.message ?? 'Sin conectar (pulsa Conectar)'}
+              {biometricsLoading
+                ? 'Actualizando…'
+                : biometrics?.connected
+                  ? (biometrics.note ?? 'Conectado')
+                  : (biometrics?.message ?? 'Sin conectar (pulsa Conectar)')}
             </p>
           </div>
         </div>

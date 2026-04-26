@@ -76,21 +76,23 @@ export class WearablesService {
       };
     }
 
-    const [profileResp, heartDayResp, stepsResp] = await Promise.all([
+    const [profileResp, heartDayResp, heartWeekResp, stepsResp] = await Promise.all([
       this.fitbitGet("https://api.fitbit.com/1/user/-/profile.json", accessToken),
       this.fitbitGet("https://api.fitbit.com/1/user/-/activities/heart/date/today/1d.json", accessToken),
+      this.fitbitGet("https://api.fitbit.com/1/user/-/activities/heart/date/today/7d.json", accessToken),
       this.fitbitGet("https://api.fitbit.com/1/user/-/activities/steps/date/today/1d.json", accessToken),
     ]);
 
     const profile = profileResp?.user ?? {};
-    const restingFromProfile =
-      typeof profile.restingHeartRate === "number" ? profile.restingHeartRate : null;
+    // profile.json documentado no incluye restingHeartRate; por si la API lo añade en algún caso:
+    const restingFromProfile = this.coalescePositiveInt(
+      (profile as { restingHeartRate?: unknown }).restingHeartRate,
+    );
 
-    const dayHeart = heartDayResp?.["activities-heart"]?.[0]?.value;
-    const restingFromDay =
-      dayHeart && typeof dayHeart === "object" && typeof dayHeart.restingHeartRate === "number"
-        ? dayHeart.restingHeartRate
-        : null;
+    const restingFromDay = this.restingHeartFromActivitiesHeartEntry(
+      heartDayResp?.["activities-heart"]?.[0],
+    );
+    const restingFromWeek = this.latestRestingHeartFromWeek(heartWeekResp?.["activities-heart"]);
 
     let latestIntraday: number | null = null;
     try {
@@ -101,14 +103,13 @@ export class WearablesService {
       const heartDataset = intraResp?.["activities-heart-intraday"]?.dataset ?? [];
       if (Array.isArray(heartDataset) && heartDataset.length > 0) {
         const last = heartDataset[heartDataset.length - 1];
-        const v = last?.value;
-        latestIntraday = typeof v === "number" ? v : null;
+        latestIntraday = this.coalescePositiveInt(last?.value);
       }
     } catch {
-      // Intradía a veces vacío o no disponible según tipo de app Fitbit; usamos resumen/perfil.
+      // Intradía a veces vacío o no disponible según tipo de app Fitbit; usamos resumen/semana.
     }
 
-    const restingHr = restingFromDay ?? restingFromProfile;
+    const restingHr = restingFromDay ?? restingFromWeek ?? restingFromProfile;
     const heartRate = latestIntraday ?? restingHr ?? null;
 
     const rawSteps = stepsResp?.["activities-steps"]?.[0]?.value;
@@ -118,6 +119,11 @@ export class WearablesService {
         : null;
     const stepsToday = Number.isFinite(steps) ? steps : null;
 
+    const note =
+      heartRate == null
+        ? "Sin dato de pulso: sincroniza la pulsera con la app Fitbit; el reposo puede aparecer al día siguiente."
+        : undefined;
+
     return {
       connected: true,
       heartRate,
@@ -126,7 +132,45 @@ export class WearablesService {
       heartRateFromIntraday: latestIntraday != null,
       updatedAt: new Date().toISOString(),
       source: "fitbit",
+      ...(note ? { note } : {}),
     };
+  }
+
+  private coalescePositiveInt(value: unknown): number | null {
+    if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+      return Math.round(value);
+    }
+    if (typeof value === "string" && value.trim() !== "") {
+      const n = Number.parseInt(value, 10);
+      if (Number.isFinite(n) && n > 0) {
+        return n;
+      }
+    }
+    return null;
+  }
+
+  private restingHeartFromActivitiesHeartEntry(entry: unknown): number | null {
+    if (!entry || typeof entry !== "object") {
+      return null;
+    }
+    const value = (entry as { value?: unknown }).value;
+    if (!value || typeof value !== "object") {
+      return null;
+    }
+    return this.coalescePositiveInt((value as { restingHeartRate?: unknown }).restingHeartRate);
+  }
+
+  private latestRestingHeartFromWeek(entries: unknown): number | null {
+    if (!Array.isArray(entries) || entries.length === 0) {
+      return null;
+    }
+    for (let i = entries.length - 1; i >= 0; i -= 1) {
+      const r = this.restingHeartFromActivitiesHeartEntry(entries[i]);
+      if (r != null) {
+        return r;
+      }
+    }
+    return null;
   }
 
   private async fitbitGet(url: string, accessToken: string): Promise<any> {
