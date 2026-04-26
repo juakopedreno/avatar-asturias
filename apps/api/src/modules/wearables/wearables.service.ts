@@ -19,7 +19,17 @@ type FitbitTokenResponse = {
 
 @Injectable()
 export class WearablesService {
+  private static readonly REALTIME_CACHE_MS = (() => {
+    const raw = process.env.WEARABLES_REALTIME_CACHE_MS;
+    const n = raw ? Number.parseInt(raw, 10) : 180_000;
+    return Number.isFinite(n) && n >= 30_000 ? n : 180_000;
+  })();
+  private static readonly REALTIME_STALE_MS = 30 * 60 * 1000;
+
   private readonly logger = new Logger(WearablesService.name);
+  /** Respuesta Fitbit en caché para no disparar 429 (muchas llamadas en paralelo + polling). */
+  private realtimeCache: { body: Record<string, unknown>; until: number } | null = null;
+  private realtimeStale: { body: Record<string, unknown>; storedAt: number } | null = null;
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -66,18 +76,55 @@ export class WearablesService {
     }
     const token = (await response.json()) as FitbitTokenResponse;
     await this.saveTokens(token);
+    this.realtimeCache = null;
+    this.realtimeStale = null;
     return { ok: true };
   }
 
   async getRealtime(includeDiagnostics = false) {
+    const now = Date.now();
+    if (!includeDiagnostics && this.realtimeCache && now < this.realtimeCache.until) {
+      return { ...this.realtimeCache.body } as Awaited<ReturnType<WearablesService["computeRealtimePayload"]>>;
+    }
+
     try {
-      return await this.computeRealtimePayload(includeDiagnostics);
+      const payload = await this.computeRealtimePayload(includeDiagnostics);
+      if (
+        !includeDiagnostics &&
+        payload &&
+        typeof payload === "object" &&
+        (payload as { connected?: boolean }).connected === true
+      ) {
+        const body = { ...(payload as Record<string, unknown>) };
+        this.realtimeStale = { body, storedAt: now };
+        this.realtimeCache = {
+          body,
+          until: now + WearablesService.REALTIME_CACHE_MS,
+        };
+      }
+      return payload;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      this.logger.warn(`getRealtime falló: ${msg}`);
+      this.logger.warn(`getRealtime falló: ${msg.slice(0, 300)}`);
+
+      const stale = this.realtimeStale;
+      if (stale && now - stale.storedAt < WearablesService.REALTIME_STALE_MS) {
+        return {
+          ...stale.body,
+          note:
+            "Límite de consultas de Fitbit (429). Mostrando los últimos datos guardados; espera unos minutos.",
+          source: "fitbit",
+        } as Awaited<ReturnType<WearablesService["computeRealtimePayload"]>>;
+      }
+
+      const friendly =
+        msg.includes("429") || msg.includes("RESOURCE_EXHAUSTED")
+          ? "Fitbit ha limitado temporalmente las consultas (cuota). Espera 5–15 minutos y recarga; evita abrir varias pestañas a la vez."
+          : `No se pudo leer Fitbit: ${msg.slice(0, 180)}`;
+
       return {
         connected: false,
-        message: `No se pudo leer Fitbit: ${msg.slice(0, 200)}`,
+        message: friendly,
         source: "error",
         ...(includeDiagnostics ? { diagnostics: { uncaughtError: msg } } : {}),
       };

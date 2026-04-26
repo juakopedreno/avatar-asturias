@@ -331,7 +331,7 @@ export default function AvatarDemo() {
     void loadBiometrics();
     const timer = window.setInterval(() => {
       void loadBiometrics();
-    }, 30000);
+    }, 120_000);
     return () => window.clearInterval(timer);
   }, []);
 
