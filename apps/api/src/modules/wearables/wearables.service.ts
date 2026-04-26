@@ -76,27 +76,54 @@ export class WearablesService {
       };
     }
 
-    const [profileResp, heartResp, stepsResp] = await Promise.all([
+    const [profileResp, heartDayResp, stepsResp] = await Promise.all([
       this.fitbitGet("https://api.fitbit.com/1/user/-/profile.json", accessToken),
-      this.fitbitGet("https://api.fitbit.com/1/user/-/activities/heart/date/today/1d/1min.json", accessToken),
+      this.fitbitGet("https://api.fitbit.com/1/user/-/activities/heart/date/today/1d.json", accessToken),
       this.fitbitGet("https://api.fitbit.com/1/user/-/activities/steps/date/today/1d.json", accessToken),
     ]);
 
     const profile = profileResp?.user ?? {};
-    const heartDataset = heartResp?.["activities-heart-intraday"]?.dataset ?? [];
-    const latestHr = Array.isArray(heartDataset) && heartDataset.length > 0
-      ? heartDataset[heartDataset.length - 1]?.value ?? null
-      : null;
-    const restingHr = profile.restingHeartRate ?? null;
-    const steps = stepsResp?.["activities-steps"]?.[0]?.value
-      ? Number.parseInt(stepsResp["activities-steps"][0].value, 10)
-      : null;
+    const restingFromProfile =
+      typeof profile.restingHeartRate === "number" ? profile.restingHeartRate : null;
+
+    const dayHeart = heartDayResp?.["activities-heart"]?.[0]?.value;
+    const restingFromDay =
+      dayHeart && typeof dayHeart === "object" && typeof dayHeart.restingHeartRate === "number"
+        ? dayHeart.restingHeartRate
+        : null;
+
+    let latestIntraday: number | null = null;
+    try {
+      const intraResp = await this.fitbitGet(
+        "https://api.fitbit.com/1/user/-/activities/heart/date/today/1d/1min.json",
+        accessToken,
+      );
+      const heartDataset = intraResp?.["activities-heart-intraday"]?.dataset ?? [];
+      if (Array.isArray(heartDataset) && heartDataset.length > 0) {
+        const last = heartDataset[heartDataset.length - 1];
+        const v = last?.value;
+        latestIntraday = typeof v === "number" ? v : null;
+      }
+    } catch {
+      // Intradía a veces vacío o no disponible según tipo de app Fitbit; usamos resumen/perfil.
+    }
+
+    const restingHr = restingFromDay ?? restingFromProfile;
+    const heartRate = latestIntraday ?? restingHr ?? null;
+
+    const rawSteps = stepsResp?.["activities-steps"]?.[0]?.value;
+    const steps =
+      rawSteps !== undefined && rawSteps !== null && rawSteps !== ""
+        ? Number.parseInt(String(rawSteps), 10)
+        : null;
+    const stepsToday = Number.isFinite(steps) ? steps : null;
 
     return {
       connected: true,
-      heartRate: latestHr,
+      heartRate,
       restingHeartRate: restingHr,
-      stepsToday: steps,
+      stepsToday,
+      heartRateFromIntraday: latestIntraday != null,
       updatedAt: new Date().toISOString(),
       source: "fitbit",
     };

@@ -46,6 +46,8 @@ type RealtimeBiometrics = {
   stepsToday?: number | null;
   updatedAt?: string;
   message?: string;
+  /** true si el valor viene de serie intradía; false si es pulso en reposo / resumen */
+  heartRateFromIntraday?: boolean;
 };
 
 export default function AvatarDemo() {
@@ -540,12 +542,25 @@ export default function AvatarDemo() {
     : 'linear-gradient(180deg, hsl(210 42% 96%) 0%, hsl(208 46% 92%) 45%, hsl(206 44% 88%) 100%)';
 
   const chatHeader = (
-    <div className="p-4 border-b border-border flex items-center justify-between flex-shrink-0">
-      <div>
+    <div className="p-4 border-b border-border flex items-center justify-between flex-shrink-0 gap-2">
+      <div className="min-w-0">
         <h2 className="font-semibold text-sm">Asistente de Salud</h2>
         <p className="text-[11px] text-muted-foreground">SHA Wellness Clinic · Siempre disponible</p>
-            </div>
-      <div className="flex items-center gap-2">
+        <p className="text-[10px] text-muted-foreground mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+          <span className="font-medium text-foreground/80">Pulsera</span>
+          <span>
+            {biometricsLoading ? '…' : `Pulso ${biometrics?.heartRate ?? '—'} lpm · Pasos ${biometrics?.stepsToday ?? '—'}`}
+          </span>
+          <button
+            type="button"
+            onClick={() => void connectFitbit()}
+            className="text-primary underline-offset-2 hover:underline"
+          >
+            Conectar Fitbit
+          </button>
+        </p>
+      </div>
+      <div className="flex items-center gap-2 flex-shrink-0">
         <div className="flex items-center gap-2 glass-dark rounded-lg px-2 py-1.5">
             <Globe className="w-3.5 h-3.5 text-primary" />
             <select
@@ -669,8 +684,8 @@ export default function AvatarDemo() {
           <ArrowLeft className="w-4 h-4" /> Volver al inicio
         </Link>
 
-        <div className="absolute top-16 right-3 z-20 sm:top-14 sm:right-5 md:top-6 md:right-6 max-w-[min(240px,calc(100vw-1.5rem))]">
-          <div className="glass-dark rounded-xl px-2.5 py-1.5 md:px-3 md:py-2 min-w-0 border border-primary/20 shadow-lg">
+        <div className="absolute top-16 right-3 z-30 sm:top-14 sm:right-5 md:top-6 md:right-6 max-w-[min(240px,calc(100vw-1.5rem))]">
+          <div className="glass-dark rounded-xl px-2.5 py-1.5 md:px-3 md:py-2 min-w-0 border border-primary/20 shadow-lg ring-1 ring-white/10">
             <div className="flex items-center justify-between gap-1 mb-1">
               <p className="text-[10px] md:text-[11px] text-primary-foreground/70 uppercase tracking-wider">Biometría</p>
               <button
@@ -683,6 +698,9 @@ export default function AvatarDemo() {
             </div>
             <p className="text-[11px] md:text-xs text-primary-foreground">
               Pulso: <span className="font-semibold">{biometrics?.heartRate ?? '—'} lpm</span>
+              {biometrics?.connected && biometrics.heartRate != null && biometrics.heartRateFromIntraday === false ? (
+                <span className="text-primary-foreground/60 font-normal"> (reposo)</span>
+              ) : null}
             </p>
             <p className="text-[11px] md:text-xs text-primary-foreground/80">Pasos hoy: {biometrics?.stepsToday ?? '—'}</p>
             <p className="text-[9px] md:text-[10px] text-primary-foreground/60 mt-0.5 leading-tight">
@@ -824,12 +842,25 @@ export default function AvatarDemo() {
         className="hidden md:flex w-full md:w-[420px] flex-1 flex-col min-h-0 bg-card"
         style={{ boxShadow: '-10px 0 40px rgba(0,0,0,0.2)' }}
       >
-        <div className="p-5 border-b border-border flex items-center justify-between flex-shrink-0">
-          <div>
+        <div className="p-5 border-b border-border flex items-center justify-between flex-shrink-0 gap-2">
+          <div className="min-w-0">
             <h2 className="font-semibold text-sm">Asistente de Salud</h2>
             <p className="text-[11px] text-muted-foreground">SHA Wellness Clinic · Siempre disponible</p>
+            <p className="text-[10px] text-muted-foreground mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+              <span className="font-medium text-foreground/80">Pulsera</span>
+              <span>
+                {biometricsLoading ? '…' : `Pulso ${biometrics?.heartRate ?? '—'} lpm · Pasos ${biometrics?.stepsToday ?? '—'}`}
+              </span>
+              <button
+                type="button"
+                onClick={() => void connectFitbit()}
+                className="text-primary underline-offset-2 hover:underline"
+              >
+                Conectar Fitbit
+              </button>
+            </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-shrink-0">
             <button className="p-1.5 rounded-lg hover:bg-muted transition-colors">
               <Volume2 className="w-4 h-4 text-muted-foreground" />
             </button>
