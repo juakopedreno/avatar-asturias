@@ -25,7 +25,7 @@ export class WearablesController {
   }
 
   @Get("me/realtime")
-  async myRealtime() {
-    return this.wearablesService.getRealtime();
+  async myRealtime(@Query("diagnostics") diagnostics?: string) {
+    return this.wearablesService.getRealtime(diagnostics === "1");
   }
 }

@@ -67,7 +67,7 @@ export class WearablesService {
     return { ok: true };
   }
 
-  async getRealtime() {
+  async getRealtime(includeDiagnostics = false) {
     const accessToken = await this.getValidAccessToken();
     if (!accessToken) {
       return {
@@ -124,10 +124,11 @@ export class WearablesService {
         ? "Sin dato de pulso: sincroniza la pulsera con la app Fitbit; el reposo puede aparecer al día siguiente."
         : undefined;
 
-    const activityJson = await this.fitbitGetOptional(
+    const activityResult = await this.fitbitFetchJson(
       "https://api.fitbit.com/1/user/-/activities/date/today.json",
       accessToken,
     );
+    const activityJson = activityResult.ok ? activityResult.body : null;
     const summary = activityJson?.summary as Record<string, unknown> | undefined;
     const caloriesOut = this.nonNegativeInt(summary?.caloriesOut);
     const floors = this.nonNegativeInt(summary?.floors);
@@ -155,10 +156,9 @@ export class WearablesService {
     const afterSleep = new Date();
     afterSleep.setUTCDate(afterSleep.getUTCDate() - 21);
     const afterSleepStr = afterSleep.toISOString().slice(0, 10);
-    const sleepJson = await this.fitbitGetOptional(
-      `https://api.fitbit.com/1.2/user/-/sleep/list.json?beforeDate=today&afterDate=${afterSleepStr}&sort=desc&limit=1`,
-      accessToken,
-    );
+    const sleepUrl = `https://api.fitbit.com/1.2/user/-/sleep/list.json?beforeDate=today&afterDate=${afterSleepStr}&sort=desc&limit=1`;
+    const sleepResult = await this.fitbitFetchJson(sleepUrl, accessToken);
+    const sleepJson = sleepResult.ok ? sleepResult.body : null;
     let sleepDateLast: string | null = null;
     let sleepMinutesLast: number | null = null;
     let sleepEfficiencyLast: number | null = null;
@@ -171,6 +171,33 @@ export class WearablesService {
       sleepMinutesLast = this.nonNegativeInt(sl.minutesAsleep);
       sleepEfficiencyLast = this.nonNegativeInt(sl.efficiency);
     }
+
+    const diagnostics = includeDiagnostics
+      ? {
+          activity: activityResult.ok
+            ? {
+                httpStatus: activityResult.status,
+                hasSummary: Boolean(activityJson?.summary),
+                summaryKeys:
+                  activityJson?.summary && typeof activityJson.summary === "object"
+                    ? Object.keys(activityJson.summary as object).slice(0, 20)
+                    : [],
+              }
+            : {
+                httpStatus: activityResult.status,
+                error: activityResult.errorSnippet,
+              },
+          sleep: sleepResult.ok
+            ? {
+                httpStatus: sleepResult.status,
+                sleepLogsCount: Array.isArray(sleepJson?.sleep) ? sleepJson.sleep.length : 0,
+              }
+            : {
+                httpStatus: sleepResult.status,
+                error: sleepResult.errorSnippet,
+              },
+        }
+      : undefined;
 
     return {
       connected: true,
@@ -191,6 +218,7 @@ export class WearablesService {
       updatedAt: new Date().toISOString(),
       source: "fitbit",
       ...(note ? { note } : {}),
+      ...(diagnostics ? { diagnostics } : {}),
     };
   }
 
@@ -205,14 +233,6 @@ export class WearablesService {
       }
     }
     return null;
-  }
-
-  private async fitbitGetOptional(url: string, accessToken: string): Promise<any | null> {
-    try {
-      return await this.fitbitGet(url, accessToken);
-    } catch {
-      return null;
-    }
   }
 
   private coalescePositiveInt(value: unknown): number | null {
@@ -252,17 +272,41 @@ export class WearablesService {
     return null;
   }
 
-  private async fitbitGet(url: string, accessToken: string): Promise<any> {
+  private async fitbitFetchJson(
+    url: string,
+    accessToken: string,
+  ): Promise<
+    | { ok: true; status: number; body: any }
+    | { ok: false; status: number; errorSnippet: string }
+  > {
     const response = await fetch(url, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
+        Accept: "application/json",
       },
     });
+    const status = response.status;
+    const text = await response.text();
     if (!response.ok) {
-      const txt = await response.text();
-      throw new Error(`Fitbit GET falló (${response.status}): ${txt}`);
+      return {
+        ok: false,
+        status,
+        errorSnippet: text.replace(/\s+/g, " ").slice(0, 240),
+      };
     }
-    return response.json();
+    try {
+      return { ok: true, status, body: JSON.parse(text) as any };
+    } catch {
+      return { ok: false, status, errorSnippet: "respuesta-no-json" };
+    }
+  }
+
+  private async fitbitGet(url: string, accessToken: string): Promise<any> {
+    const r = await this.fitbitFetchJson(url, accessToken);
+    if (!r.ok) {
+      throw new Error(`Fitbit GET falló (${r.status}): ${r.errorSnippet}`);
+    }
+    return r.body;
   }
 
   private async saveTokens(token: FitbitTokenResponse) {
