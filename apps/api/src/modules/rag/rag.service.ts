@@ -258,6 +258,53 @@ export class RagService {
       };
     }
 
+    if (dto.wearablesSummary?.trim() && this.isWearablesQuestion(normalized)) {
+      let wearablesAnswer = this.buildWearablesGuidanceAnswer(
+        dto.language,
+        dto.question,
+        dto.wearablesSummary,
+      );
+      const topicAlerts = await this.getAlertsMatchingQuestion(normalized);
+      if (topicAlerts.length > 0) {
+        const prefix = topicAlerts.map((a) => `[Aviso] ${a.title}: ${a.message}`).join(" ");
+        wearablesAnswer = `${prefix} ${wearablesAnswer}`.trim();
+      }
+      const conversation = await this.prisma.conversation.create({
+        data: {
+          language: dto.language,
+          messages: {
+            create: [
+              {
+                role: "user",
+                content: dto.question,
+              },
+              {
+                role: "assistant",
+                content: wearablesAnswer,
+              },
+            ],
+          },
+        },
+      });
+      return {
+        answer: wearablesAnswer,
+        uncertainty: false,
+        sources: [
+          {
+            id: "wearables-fitbit-summary",
+            label: "Resumen Fitbit",
+            sourceLabel: "Resumen Fitbit",
+            updatedAt: new Date(),
+          },
+        ],
+        guardrails: {
+          offTopicBlocked: false,
+          personalDataUsedForTraining: false,
+        },
+        conversationId: conversation.id,
+      };
+    }
+
     const tokens = this.tokenizeForSearch(normalized);
     const published = await this.contentService.findAllPublished();
     const controlledScores = published.map((cr) => {
@@ -687,5 +734,69 @@ export class RagService {
       "hi",
     ]);
     return greetings.has(compact);
+  }
+
+  private isWearablesQuestion(normalizedQuestion: string): boolean {
+    const keywords = [
+      "pulso",
+      "ritmo cardiaco",
+      "corazon",
+      "pasos",
+      "sueno",
+      "dormi",
+      "dormi anoche",
+      "descanso",
+      "calorias",
+      "actividad",
+      "sedentario",
+      "fitbit",
+      "sleep",
+      "heart",
+      "steps",
+      "resting",
+      "wellness data",
+    ];
+    return keywords.some((k) => normalizedQuestion.includes(this.normalizeForSearch(k)));
+  }
+
+  private buildWearablesGuidanceAnswer(
+    language: AskQuestionDto["language"],
+    question: string,
+    wearablesSummary: string,
+  ): string {
+    if (language === "EN") {
+      return (
+        `Based on your wearable data, this is the current snapshot: ${wearablesSummary}. ` +
+        `For your question (“${question}”), I suggest: 1) keep hydration and light movement today, ` +
+        `2) if sleep was limited, prioritize an earlier bedtime and reduce late caffeine/screens, ` +
+        `3) if symptoms worsen or persist, seek professional assessment. ` +
+        "This guidance is wellness-oriented and does not replace medical diagnosis."
+      );
+    }
+    if (language === "FR") {
+      return (
+        `D'après vos données de bracelet, l'état actuel est: ${wearablesSummary}. ` +
+        `Pour votre question («${question}»), je recommande: 1) hydratation et mouvement léger aujourd'hui, ` +
+        "2) si le sommeil a été limité, coucher plus tôt et moins de caféine/écrans le soir, " +
+        "3) si les symptômes persistent ou s'aggravent, consultez un professionnel. " +
+        "Ces recommandations de bien-être ne remplacent pas un diagnostic médical."
+      );
+    }
+    if (language === "DE") {
+      return (
+        `Laut Ihren Wearable-Daten ist der aktuelle Stand: ${wearablesSummary}. ` +
+        `Zu Ihrer Frage („${question}“) empfehle ich: 1) heute gut hydrieren und leichte Bewegung, ` +
+        "2) bei wenig Schlaf früher schlafen gehen und abends Koffein/Bildschirmzeit reduzieren, " +
+        "3) bei anhaltenden oder stärkeren Beschwerden medizinisch abklären lassen. " +
+        "Diese Hinweise sind wellness-orientiert und ersetzen keine Diagnose."
+      );
+    }
+    return (
+      `Con base en tus datos de pulsera, el estado actual es: ${wearablesSummary}. ` +
+      `Para tu pregunta (“${question}”), te recomiendo: 1) hidratarte bien y hacer movimiento suave hoy, ` +
+      "2) si el sueño fue limitado, priorizar acostarte antes y reducir cafeína/pantallas por la tarde-noche, " +
+      "3) si el malestar persiste o empeora, consulta a un profesional de salud. " +
+      "Estas indicaciones son de bienestar y no sustituyen un diagnóstico médico."
+    );
   }
 }
