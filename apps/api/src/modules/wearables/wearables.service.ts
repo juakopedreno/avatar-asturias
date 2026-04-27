@@ -176,13 +176,6 @@ export class WearablesService {
     const restingHr = restingFromDay ?? restingFromWeek ?? restingFromProfile;
     const heartRate = latestIntraday ?? restingHr ?? null;
 
-    const rawSteps = stepsResp?.["activities-steps"]?.[0]?.value;
-    const steps =
-      rawSteps !== undefined && rawSteps !== null && rawSteps !== ""
-        ? Number.parseInt(String(rawSteps), 10)
-        : null;
-    const stepsToday = Number.isFinite(steps) ? steps : null;
-
     const note =
       heartRate == null
         ? "Sin dato de pulso: sincroniza la pulsera con la app Fitbit; el reposo puede aparecer al día siguiente."
@@ -195,6 +188,7 @@ export class WearablesService {
     );
     const activityJson = activityResult.ok ? activityResult.body : null;
     const summary = activityJson?.summary as Record<string, unknown> | undefined;
+    const stepsFromSummary = this.nonNegativeInt(summary?.steps);
     const caloriesOut = this.nonNegativeInt(summary?.caloriesOut);
     const floors = this.nonNegativeInt(summary?.floors);
     const veryActiveMinutes = this.nonNegativeInt(summary?.veryActiveMinutes);
@@ -217,6 +211,9 @@ export class WearablesService {
         }
       }
     }
+
+    const stepsFromSeries = this.nonNegativeInt(stepsResp?.["activities-steps"]?.[0]?.value);
+    const stepsToday = stepsFromSummary ?? stepsFromSeries ?? null;
 
     const todayDate = new Date().toISOString().slice(0, 10);
     const yesterdayDateObj = new Date();
@@ -259,6 +256,8 @@ export class WearablesService {
             ? {
                 httpStatus: activityResult.status,
                 hasSummary: Boolean(activityJson?.summary),
+                stepsSummary: stepsFromSummary,
+                stepsSeries: stepsFromSeries,
                 summaryKeys:
                   activityJson?.summary && typeof activityJson.summary === "object"
                     ? Object.keys(activityJson.summary as object).slice(0, 20)
@@ -308,7 +307,8 @@ export class WearablesService {
       return Math.round(value);
     }
     if (typeof value === "string" && value.trim() !== "") {
-      const n = Number.parseInt(value, 10);
+      const normalized = value.replace(/[^\d-]/g, "");
+      const n = Number.parseInt(normalized, 10);
       if (Number.isFinite(n) && n >= 0) {
         return n;
       }
