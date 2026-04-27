@@ -188,8 +188,9 @@ export class WearablesService {
         ? "Sin dato de pulso: sincroniza la pulsera con la app Fitbit; el reposo puede aparecer al día siguiente."
         : undefined;
 
+    const today = new Date().toISOString().slice(0, 10);
     const activityResult = await this.fitbitFetchJson(
-      "https://api.fitbit.com/1/user/-/activities/date/today.json",
+      `https://api.fitbit.com/1/user/-/activities/date/${today}.json`,
       accessToken,
     );
     const activityJson = activityResult.ok ? activityResult.body : null;
@@ -217,12 +218,24 @@ export class WearablesService {
       }
     }
 
-    const afterSleep = new Date();
-    afterSleep.setUTCDate(afterSleep.getUTCDate() - 21);
-    const afterSleepStr = afterSleep.toISOString().slice(0, 10);
-    const sleepUrl = `https://api.fitbit.com/1.2/user/-/sleep/list.json?beforeDate=today&afterDate=${afterSleepStr}&sort=desc&limit=1`;
-    const sleepResult = await this.fitbitFetchJson(sleepUrl, accessToken);
-    const sleepJson = sleepResult.ok ? sleepResult.body : null;
+    const sleepTodayResult = await this.fitbitFetchJson(
+      "https://api.fitbit.com/1.2/user/-/sleep/date/today.json",
+      accessToken,
+    );
+    const sleepYesterdayResult = await this.fitbitFetchJson(
+      "https://api.fitbit.com/1.2/user/-/sleep/date/yesterday.json",
+      accessToken,
+    );
+    const sleepTodayJson = sleepTodayResult.ok ? sleepTodayResult.body : null;
+    const sleepYesterdayJson = sleepYesterdayResult.ok ? sleepYesterdayResult.body : null;
+    const sleepResult =
+      sleepTodayResult.ok && Array.isArray(sleepTodayJson?.sleep) && sleepTodayJson.sleep.length > 0
+        ? sleepTodayResult
+        : sleepYesterdayResult;
+    const sleepJson =
+      sleepResult === sleepTodayResult
+        ? sleepTodayJson
+        : sleepYesterdayJson;
     let sleepDateLast: string | null = null;
     let sleepMinutesLast: number | null = null;
     let sleepEfficiencyLast: number | null = null;
