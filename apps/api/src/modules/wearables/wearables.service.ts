@@ -218,12 +218,16 @@ export class WearablesService {
       }
     }
 
+    const todayDate = new Date().toISOString().slice(0, 10);
+    const yesterdayDateObj = new Date();
+    yesterdayDateObj.setUTCDate(yesterdayDateObj.getUTCDate() - 1);
+    const yesterdayDate = yesterdayDateObj.toISOString().slice(0, 10);
     const sleepTodayResult = await this.fitbitFetchJson(
-      "https://api.fitbit.com/1.2/user/-/sleep/date/today.json",
+      `https://api.fitbit.com/1.2/user/-/sleep/date/${todayDate}.json`,
       accessToken,
     );
     const sleepYesterdayResult = await this.fitbitFetchJson(
-      "https://api.fitbit.com/1.2/user/-/sleep/date/yesterday.json",
+      `https://api.fitbit.com/1.2/user/-/sleep/date/${yesterdayDate}.json`,
       accessToken,
     );
     const sleepTodayJson = sleepTodayResult.ok ? sleepTodayResult.body : null;
