@@ -219,9 +219,10 @@ export class RagService {
   async ask(dto: AskQuestionDto) {
     const normalized = this.normalizeForSearch(dto.question);
     if (this.isGreeting(normalized)) {
-      let greetingAnswer = this.appendWearablesToText(
+      let greetingAnswer = this.appendWearablesConversationHint(
         this.getGreetingForLanguage(dto.language),
         dto.wearablesSummary,
+        dto.language,
       );
       const activeAlerts = await this.alertsService.findActive();
       const greetingAlerts = activeAlerts.filter((a) => a.showOnGreeting);
@@ -258,7 +259,7 @@ export class RagService {
       };
     }
 
-    if (dto.wearablesSummary?.trim() && this.isWearablesQuestion(normalized)) {
+    if (dto.wearablesSummary?.trim() && this.isExplicitWearablesRequest(normalized)) {
       let wearablesAnswer = this.buildWearablesGuidanceAnswer(
         dto.language,
         dto.question,
@@ -531,12 +532,19 @@ export class RagService {
 
     try {
       const languageName = this.resolveLanguageName(dto.language);
-      const wearablesBlock = dto.wearablesSummary?.trim()
-        ? `\nDatos de pulsera/biometría (orientativos, no sustituyen valoración médica):\n${dto.wearablesSummary.trim()}\n`
+      const normalizedQ = this.normalizeForSearch(dto.question);
+      const attachWearables =
+        Boolean(dto.wearablesSummary?.trim()) && this.isExplicitWearablesRequest(normalizedQ);
+      const wearablesBlock = attachWearables
+        ? `\nDatos de pulsera/biometría (orientativos, no sustituyen valoración médica):\n${dto.wearablesSummary!.trim()}\n`
         : "";
-      const wearableSystemHint = dto.wearablesSummary?.trim()
+      const wearableSystemHint = attachWearables
         ? " Si hay datos de pulsera, enlázalos de forma explícita con 1–3 recomendaciones concretas de bienestar (sin alarmismo ni diagnósticos)."
         : "";
+      const noWearablesDetailHint =
+        dto.wearablesSummary?.trim() && !attachWearables
+          ? " No incluyas cifras ni análisis detallados de pulsera o biometría: el usuario no ha pedido datos del dispositivo en esta conversación. Responde de forma breve y natural."
+          : "";
       const response = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -558,7 +566,8 @@ export class RagService {
                 "Usa solo el contexto proporcionado y no inventes datos. " +
                 "Si el contexto no alcanza, dilo y pide una aclaración. " +
                 "No ofrezcas guías de turismo, playas, transporte ni actividades de ocio de ciudad." +
-                wearableSystemHint,
+                wearableSystemHint +
+                noWearablesDetailHint,
             },
             {
               role: "user",
@@ -628,12 +637,22 @@ export class RagService {
     );
   }
 
-  private appendWearablesToText(base: string, wearables?: string): string {
-    const w = wearables?.trim();
-    if (!w) {
+  /** Saludo ligero: guiño opcional sin volcar métricas del wearable. */
+  private appendWearablesConversationHint(
+    base: string,
+    wearablesSummary: string | undefined,
+    language: AskQuestionDto["language"],
+  ): string {
+    if (!wearablesSummary?.trim()) {
       return base;
     }
-    return `${base} (Contexto pulsera, orientativo: ${w})`.trim();
+    const hints: Record<AskQuestionDto["language"], string> = {
+      ES: "Cuando quieras, puedo usar lo que marca tu pulsera si preguntas por algo concreto (pasos, pulso o sueño).",
+      EN: "Whenever you’re ready, I can look at what your bracelet shows if you ask for something specific — steps, heart rate or sleep.",
+      DE: "Wenn du möchtest, kann ich die Werte vom Armband nutzen, wenn du konkret nach Schritten, Puls oder Schlaf fragst.",
+      FR: "Si tu veux, je peux utiliser ce que montre ton bracelet si tu poses une question précise — pas, pouls ou sommeil.",
+    };
+    return `${base} ${hints[language] ?? hints.ES}`.trim();
   }
 
   private getGreetingForLanguage(language: AskQuestionDto["language"]): string {
@@ -736,27 +755,53 @@ export class RagService {
     return greetings.has(compact);
   }
 
-  private isWearablesQuestion(normalizedQuestion: string): boolean {
-    const keywords = [
-      "pulso",
-      "ritmo cardiaco",
-      "corazon",
+  /**
+   * Solo preguntas explícitas por métricas o por el wearable.
+   * Evita activar con charla general vaga (actividad, descanso, corazón en sentido figurado…).
+   * Comprueba tokens para no confundir p. ej. "impulso" con "pulso".
+   */
+  private isExplicitWearablesRequest(normalizedQuestion: string): boolean {
+    const tokens = new Set(normalizedQuestion.split(/\s+/).filter((t) => t.length >= 2));
+    const tokenHits = [
       "pasos",
+      "pulso",
+      "pulsaciones",
+      "pulsera",
+      "ppm",
+      "bpm",
+      "lpm",
       "sueno",
       "dormi",
-      "dormi anoche",
-      "descanso",
-      "calorias",
-      "actividad",
-      "sedentario",
+      "dormiste",
       "fitbit",
-      "sleep",
-      "heart",
+      "sedentario",
       "steps",
+      "sleep",
+      "slept",
+      "heart",
+      "wearable",
+      "wearables",
+      "calorias",
+      "calorie",
+      "calories",
       "resting",
-      "wellness data",
+      "biometria",
+      "biometrico",
     ];
-    return keywords.some((k) => normalizedQuestion.includes(this.normalizeForSearch(k)));
+    if (tokenHits.some((t) => tokens.has(t))) {
+      return true;
+    }
+    const phrases = [
+      "ritmo cardiaco",
+      "frecuencia cardiaca",
+      "heart rate",
+      "datos de la pulsera",
+      "datos del wearable",
+      "datos biometricos",
+      "minutos activos",
+      "active zone",
+    ];
+    return phrases.some((p) => normalizedQuestion.includes(p));
   }
 
   private buildWearablesGuidanceAnswer(
