@@ -19,7 +19,7 @@ export default function AdminLayout() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex">
+    <div className="min-h-screen bg-background flex" style={{ backgroundImage: 'var(--gradient-surface)' }}>
       <AdminSidebar />
       <div className="flex-1 ml-[260px] flex flex-col min-h-screen transition-all duration-200">
         <TopBar />

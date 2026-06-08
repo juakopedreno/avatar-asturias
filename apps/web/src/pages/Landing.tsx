@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { Bot, Database, BarChart3, ShieldCheck, MessageSquare, Mic, ChevronRight, CheckCircle2, Zap, Lock, Languages } from 'lucide-react';
-import logo from '@/assets/torremolinos-logo-alt.png';
+import AsturiasMark from '@/components/brand/AsturiasMark';
 
 const features = [
   { icon: Bot, title: 'Avatar Hiperrealista', desc: 'Interacción natural por voz y texto con un avatar conversacional de última generación.' },
@@ -32,8 +32,8 @@ export default function Landing() {
       <nav className="fixed top-0 w-full z-50 bg-card/80 backdrop-blur-xl border-b border-border">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img src={logo} alt="Principado de Asturias" className="h-8" />
-            <span className="font-semibold text-foreground">Avatar Asturias</span>
+            <AsturiasMark className="h-8 w-8" />
+            <span className="font-semibold text-foreground">Principado de Asturias</span>
           </div>
           <div className="hidden md:flex items-center gap-8 text-sm text-muted-foreground">
             <a href="#features" className="hover:text-foreground transition-colors">Funcionalidades</a>
@@ -156,8 +156,8 @@ export default function Landing() {
       <footer className="border-t border-border py-8 px-6">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
           <div className="flex items-center gap-3">
-            <img src={logo} alt="Principado de Asturias" className="h-6" />
-            <span>Avatar Principado de Asturias © 2026</span>
+            <AsturiasMark className="h-6 w-6" />
+            <span>Principado de Asturias · Asistente avatar © 2026</span>
           </div>
           <div className="flex items-center gap-6">
             <span>Privacidad</span>

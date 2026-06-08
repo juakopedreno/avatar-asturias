@@ -4,7 +4,7 @@ import {
   LayoutDashboard, BookOpen, Database, MessageSquare,
   BarChart3, ShieldCheck, Users, Settings, Bot, ChevronLeft, ChevronRight, Bell,
 } from 'lucide-react';
-import logo from '@/assets/torremolinos-logo-alt.png';
+import AsturiasMark from '@/components/brand/AsturiasMark';
 import { useState } from 'react';
 
 const navigation = [
@@ -32,11 +32,13 @@ export default function AdminSidebar() {
     >
       {/* Logo */}
       <div className="flex items-center gap-3 px-4 h-16 border-b border-sidebar-border flex-shrink-0">
-        <img src={logo} alt="Principado de Asturias" className="w-8 h-8 rounded object-contain" />
+        <AsturiasMark className="w-9 h-9 flex-shrink-0" />
         {!collapsed && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col min-w-0">
-            <span className="text-sm font-semibold text-sidebar-accent-foreground truncate">CivicAvatar</span>
-            <span className="text-[10px] text-sidebar-muted truncate">Principado de Asturias</span>
+            <span className="text-sm font-semibold text-sidebar-accent-foreground truncate leading-tight">
+              Principado de Asturias
+            </span>
+            <span className="text-[10px] text-sidebar-muted truncate">Panel del asistente avatar</span>
           </motion.div>
         )}
       </div>
@@ -45,7 +47,7 @@ export default function AdminSidebar() {
       <div className="px-3 pt-4 pb-2 flex-shrink-0">
         <Link
           to="/demo"
-          className="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-sidebar-primary/20 text-sidebar-primary hover:bg-sidebar-primary/30 transition-colors"
+          className="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-sidebar-primary/25 text-sidebar-primary-foreground hover:bg-sidebar-primary/40 transition-colors font-medium"
         >
           <Bot className="w-4 h-4 flex-shrink-0" />
           {!collapsed && <span className="text-xs font-medium">Ver Avatar Demo</span>}

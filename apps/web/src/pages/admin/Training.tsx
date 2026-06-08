@@ -15,7 +15,7 @@ export default function Training() {
     responseStyle: 'conversational',
     maxResponseLength: 300,
     systemInstructions:
-      'Eres un asistente virtual del Ayuntamiento de Torremolinos. Responde con fuentes verificables y en tono respetuoso.',
+      'Eres un asistente virtual del Principado de Asturias. Responde solo con fuentes verificables y tono institucional cercano.',
     fallbackMessage:
       'Lo siento, no dispongo de informacion suficiente para responder a esa consulta. ¿Puedo ayudarte con algo relacionado con turismo o servicios municipales?',
     allowedTopicsCsv: '',

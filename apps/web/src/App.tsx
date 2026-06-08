@@ -22,7 +22,7 @@ import { AuthProvider } from "./context/auth-context";
 
 const queryClient = new QueryClient();
 
-const FAVICON_HREF = "/logo-torremolinos.png?v=3";
+const FAVICON_HREF = "/asturias-favicon.svg?v=1";
 
 function useFavicon() {
   useEffect(() => {

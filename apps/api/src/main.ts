@@ -9,7 +9,8 @@ import { AppModule } from "./app.module";
 
 const rootEnvPath = resolve(__dirname, "../../../.env");
 if (existsSync(rootEnvPath)) {
-  dotenvConfig({ path: rootEnvPath });
+  // override: true evita que variables ANAM_* viejas del shell bloqueen el .env
+  dotenvConfig({ path: rootEnvPath, override: true });
 }
 
 async function bootstrap() {

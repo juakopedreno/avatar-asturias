@@ -23,7 +23,7 @@ export default function TopBar() {
     <header className="h-14 bg-card border-b border-border flex items-center justify-between px-6 flex-shrink-0" style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
       <div className="flex items-center gap-3">
         <nav className="flex items-center gap-1.5 text-sm">
-          <Link to="/admin" className="text-muted-foreground hover:text-foreground transition-colors">Admin</Link>
+          <Link to="/admin" className="text-muted-foreground hover:text-foreground transition-colors">Principado de Asturias</Link>
           <span className="text-muted-foreground/40">/</span>
           <span className="font-medium text-foreground">{currentRoute}</span>
         </nav>

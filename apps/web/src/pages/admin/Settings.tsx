@@ -14,7 +14,7 @@ export default function SettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [settingsConfig, setSettingsConfig] = useState({
     branding: {
-      name: 'Asistente Torremolinos',
+      name: 'Asistente Principado de Asturias',
       primaryColor: '#00A3A3',
     },
     channels: [

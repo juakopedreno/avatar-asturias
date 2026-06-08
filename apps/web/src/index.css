@@ -6,59 +6,60 @@
 
 @layer base {
   :root {
-    --background: 180 15% 97%;
-    --foreground: 192 80% 15%;
+    /* Principado de Asturias — azul institucional + acento oro */
+    --background: 210 30% 97%;
+    --foreground: 208 85% 18%;
 
     --card: 0 0% 100%;
-    --card-foreground: 192 80% 15%;
+    --card-foreground: 208 85% 18%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 192 80% 15%;
+    --popover-foreground: 208 85% 18%;
 
-    --primary: 210 72% 42%;
+    --primary: 208 100% 36%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 180 10% 94%;
-    --secondary-foreground: 192 80% 15%;
+    --secondary: 210 24% 93%;
+    --secondary-foreground: 208 85% 18%;
 
-    --muted: 180 8% 93%;
-    --muted-foreground: 192 15% 46%;
+    --muted: 210 18% 92%;
+    --muted-foreground: 208 20% 42%;
 
-    --accent: 199 89% 48%;
-    --accent-foreground: 0 0% 100%;
+    --accent: 43 96% 56%;
+    --accent-foreground: 208 85% 15%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 180 12% 90%;
-    --input: 180 12% 90%;
-    --ring: 174 100% 32%;
+    --border: 210 20% 88%;
+    --input: 210 20% 88%;
+    --ring: 208 100% 36%;
 
     --radius: 0.75rem;
 
-    --sidebar-background: 192 80% 15%;
-    --sidebar-foreground: 180 15% 90%;
-    --sidebar-primary: 174 100% 42%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 192 60% 20%;
-    --sidebar-accent-foreground: 180 15% 95%;
-    --sidebar-border: 192 50% 22%;
-    --sidebar-ring: 174 100% 42%;
-    --sidebar-muted: 192 30% 35%;
+    --sidebar-background: 208 85% 22%;
+    --sidebar-foreground: 210 30% 92%;
+    --sidebar-primary: 43 96% 56%;
+    --sidebar-primary-foreground: 208 85% 15%;
+    --sidebar-accent: 208 70% 28%;
+    --sidebar-accent-foreground: 0 0% 98%;
+    --sidebar-border: 208 55% 30%;
+    --sidebar-ring: 43 96% 56%;
+    --sidebar-muted: 208 25% 55%;
 
     --success: 160 84% 39%;
     --success-foreground: 0 0% 100%;
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 100%;
-    --info: 199 89% 48%;
+    --info: 208 100% 42%;
     --info-foreground: 0 0% 100%;
 
-    --card-shadow: 0 0 0 1px rgba(0,0,0,.04), 0 2px 4px rgba(0,0,0,.02), 0 8px 16px rgba(0,0,0,.04);
-    --card-shadow-hover: 0 0 0 1px rgba(0,0,0,.04), 0 8px 30px rgba(0,0,0,.08);
+    --card-shadow: 0 0 0 1px rgba(0, 55, 120, 0.05), 0 2px 4px rgba(0, 55, 120, 0.03), 0 8px 16px rgba(0, 55, 120, 0.05);
+    --card-shadow-hover: 0 0 0 1px rgba(0, 55, 120, 0.06), 0 8px 30px rgba(0, 55, 120, 0.1);
 
-    --gradient-hero: linear-gradient(135deg, hsl(174 100% 32%) 0%, hsl(199 89% 48%) 100%);
-    --gradient-dark: linear-gradient(180deg, hsl(192 80% 12%) 0%, hsl(192 80% 6%) 100%);
-    --gradient-surface: linear-gradient(135deg, hsl(174 100% 32% / 0.05) 0%, hsl(199 89% 48% / 0.05) 100%);
+    --gradient-hero: linear-gradient(135deg, hsl(208 100% 36%) 0%, hsl(208 85% 28%) 55%, hsl(43 96% 56%) 100%);
+    --gradient-dark: linear-gradient(180deg, hsl(208 85% 20%) 0%, hsl(208 85% 12%) 100%);
+    --gradient-surface: linear-gradient(135deg, hsl(208 100% 36% / 0.06) 0%, hsl(43 96% 56% / 0.08) 100%);
   }
 
   .dark {

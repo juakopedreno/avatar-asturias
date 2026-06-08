@@ -74,7 +74,7 @@ export default function ContentManagement() {
     category: '',
     languagesCsv: 'es, en',
     status: 'draft',
-    author: 'admin@torremolinos.es',
+    author: 'admin@asturias.es',
   });
   const [editForm, setEditForm] = useState<CreateForm>({
     question: '',
@@ -419,7 +419,7 @@ export default function ContentManagement() {
                     <textarea
                       value={createForm.answer}
                       onChange={(e) => setCreateForm((prev) => ({ ...prev, answer: e.target.value }))}
-                      placeholder="La playa de la Carihuela está en el paseo marítimo de Torremolinos..."
+                      placeholder="Para solicitar una ayuda del Principado debe presentar el formulario oficial y la documentación acreditativa..."
                       className="w-full min-h-[80px] px-3 py-2 text-sm bg-muted/40 border border-border rounded-lg resize-y"
                       rows={3}
                     />
@@ -473,7 +473,7 @@ export default function ContentManagement() {
                       <input
                         value={createForm.author}
                         onChange={(e) => setCreateForm((prev) => ({ ...prev, author: e.target.value }))}
-                        placeholder="admin@torremolinos.es"
+                        placeholder="admin@asturias.es"
                         className="w-full h-10 px-3 text-sm bg-muted/40 border border-border rounded-lg"
                       />
                     </div>
