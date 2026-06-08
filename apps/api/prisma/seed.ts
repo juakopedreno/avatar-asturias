@@ -8,10 +8,10 @@ async function main() {
   const editorPasswordHash = await hash("password123", 10);
 
   await prisma.user.upsert({
-    where: { email: "admin@torremolinos.es" },
+    where: { email: "admin@asturias.es" },
     create: {
-      email: "admin@torremolinos.es",
-      fullName: "Admin Torremolinos",
+      email: "admin@asturias.es",
+      fullName: "Admin Principado de Asturias",
       passwordHash: adminPasswordHash,
       role: "admin",
       status: "active",
@@ -20,7 +20,7 @@ async function main() {
       modules: ["Todos"],
     },
     update: {
-      fullName: "Admin Torremolinos",
+      fullName: "Admin Principado de Asturias",
       role: "admin",
       status: "active",
       modules: ["Todos"],
@@ -28,10 +28,10 @@ async function main() {
   });
 
   await prisma.user.upsert({
-    where: { email: "editor@torremolinos.es" },
+    where: { email: "editor@asturias.es" },
     create: {
-      email: "editor@torremolinos.es",
-      fullName: "Editor Turismo",
+      email: "editor@asturias.es",
+      fullName: "Editor Contenidos",
       passwordHash: editorPasswordHash,
       role: "editor",
       status: "active",
@@ -39,7 +39,7 @@ async function main() {
       modules: ["Contenidos", "Fuentes", "Entrenamiento"],
     },
     update: {
-      fullName: "Editor Turismo",
+      fullName: "Editor Contenidos",
       role: "editor",
       status: "active",
       modules: ["Contenidos", "Fuentes", "Entrenamiento"],
@@ -48,11 +48,10 @@ async function main() {
 }
 
 main()
-  .then(async () => {
-    await prisma.$disconnect();
-  })
-  .catch(async (error) => {
+  .catch((error) => {
     console.error(error);
-    await prisma.$disconnect();
     process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
   });

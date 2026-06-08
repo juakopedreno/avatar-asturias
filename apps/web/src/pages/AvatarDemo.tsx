@@ -7,6 +7,9 @@ import { useChatBootstrapData } from '@/hooks/use-api-data';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { apiGet, apiPost, apiPostForm } from '@/lib/api';
 
+/** Variante Asturias: sin integración Fitbit en la demo ciudadana. */
+const ENABLE_WEARABLES = false;
+
 type AvatarState = 'idle' | 'listening' | 'processing' | 'responding';
 type SupportedLanguage = 'ES' | 'EN' | 'FR' | 'DE';
 
@@ -266,7 +269,7 @@ export default function AvatarDemo() {
           const rag = await apiPost<{ answer: string; sources?: Array<{ sourceLabel: string }> }>('/rag/ask', {
             question,
             language: lang,
-            wearablesSummary: buildWearablesSummary(),
+            wearablesSummary: ENABLE_WEARABLES ? buildWearablesSummary() : undefined,
           });
           const assistantMessage: ChatMessage = {
             id: crypto.randomUUID(),
@@ -328,6 +331,7 @@ export default function AvatarDemo() {
   };
 
   useEffect(() => {
+    if (!ENABLE_WEARABLES) return;
     void loadBiometrics();
     const timer = window.setInterval(() => {
       void loadBiometrics();
@@ -537,7 +541,7 @@ export default function AvatarDemo() {
       }>('/rag/ask', {
         question,
         language: inputLanguage,
-        wearablesSummary: buildWearablesSummary(),
+        wearablesSummary: ENABLE_WEARABLES ? buildWearablesSummary() : undefined,
       });
 
       const assistantMessage: ChatMessage = {
@@ -582,21 +586,23 @@ export default function AvatarDemo() {
   const chatHeader = (
     <div className="p-4 border-b border-border flex items-center justify-between flex-shrink-0 gap-2">
       <div className="min-w-0">
-        <h2 className="font-semibold text-sm">Asistente de Salud</h2>
-        <p className="text-[11px] text-muted-foreground">SHA Wellness Clinic · Siempre disponible</p>
-        <p className="text-[10px] text-muted-foreground mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
-          <span className="font-medium text-foreground/80">Pulsera</span>
-          <span>
-            {biometricsLoading ? '…' : `Pulso ${biometrics?.heartRate ?? '—'} lpm · Pasos ${biometrics?.stepsToday ?? '—'}`}
-          </span>
-          <button
-            type="button"
-            onClick={() => void connectFitbit()}
-            className="text-primary underline-offset-2 hover:underline"
-          >
-            Conectar Fitbit
-          </button>
-        </p>
+        <h2 className="font-semibold text-sm">Asistente del Principado</h2>
+        <p className="text-[11px] text-muted-foreground">Principado de Asturias · Siempre disponible</p>
+        {ENABLE_WEARABLES ? (
+          <p className="text-[10px] text-muted-foreground mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+            <span className="font-medium text-foreground/80">Pulsera</span>
+            <span>
+              {biometricsLoading ? '…' : `Pulso ${biometrics?.heartRate ?? '—'} lpm · Pasos ${biometrics?.stepsToday ?? '—'}`}
+            </span>
+            <button
+              type="button"
+              onClick={() => void connectFitbit()}
+              className="text-primary underline-offset-2 hover:underline"
+            >
+              Conectar Fitbit
+            </button>
+          </p>
+        ) : null}
       </div>
       <div className="flex items-center gap-2 flex-shrink-0">
         <div className="flex items-center gap-2 glass-dark rounded-lg px-2 py-1.5">
@@ -722,6 +728,7 @@ export default function AvatarDemo() {
           <ArrowLeft className="w-4 h-4" /> Volver al inicio
         </Link>
 
+        {ENABLE_WEARABLES ? (
         <div
           className={`absolute top-16 right-3 z-30 sm:top-14 sm:right-5 md:top-6 md:right-6 max-w-[min(260px,calc(100vw-1.5rem))] ${biometricsExpanded ? 'max-h-[min(72vh,480px)] overflow-y-auto' : ''}`}
         >
@@ -799,6 +806,7 @@ export default function AvatarDemo() {
             ) : null}
           </div>
         </div>
+        ) : null}
 
         {/* Avatar */}
         <motion.div
@@ -935,21 +943,23 @@ export default function AvatarDemo() {
       >
         <div className="p-5 border-b border-border flex items-center justify-between flex-shrink-0 gap-2">
           <div className="min-w-0">
-            <h2 className="font-semibold text-sm">Asistente de Salud</h2>
-            <p className="text-[11px] text-muted-foreground">SHA Wellness Clinic · Siempre disponible</p>
-            <p className="text-[10px] text-muted-foreground mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
-              <span className="font-medium text-foreground/80">Pulsera</span>
-              <span>
-                {biometricsLoading ? '…' : `Pulso ${biometrics?.heartRate ?? '—'} lpm · Pasos ${biometrics?.stepsToday ?? '—'}`}
-              </span>
-              <button
-                type="button"
-                onClick={() => void connectFitbit()}
-                className="text-primary underline-offset-2 hover:underline"
-              >
-                Conectar Fitbit
-              </button>
-            </p>
+            <h2 className="font-semibold text-sm">Asistente del Principado</h2>
+            <p className="text-[11px] text-muted-foreground">Principado de Asturias · Siempre disponible</p>
+            {ENABLE_WEARABLES ? (
+              <p className="text-[10px] text-muted-foreground mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                <span className="font-medium text-foreground/80">Pulsera</span>
+                <span>
+                  {biometricsLoading ? '…' : `Pulso ${biometrics?.heartRate ?? '—'} lpm · Pasos ${biometrics?.stepsToday ?? '—'}`}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => void connectFitbit()}
+                  className="text-primary underline-offset-2 hover:underline"
+                >
+                  Conectar Fitbit
+                </button>
+              </p>
+            ) : null}
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
             <button className="p-1.5 rounded-lg hover:bg-muted transition-colors">

@@ -219,11 +219,7 @@ export class RagService {
   async ask(dto: AskQuestionDto) {
     const normalized = this.normalizeForSearch(dto.question);
     if (this.isGreeting(normalized)) {
-      let greetingAnswer = this.appendWearablesConversationHint(
-        this.getGreetingForLanguage(dto.language),
-        dto.wearablesSummary,
-        dto.language,
-      );
+      let greetingAnswer = this.getGreetingForLanguage(dto.language);
       const activeAlerts = await this.alertsService.findActive();
       const greetingAlerts = activeAlerts.filter((a) => a.showOnGreeting);
       if (greetingAlerts.length > 0) {
@@ -380,7 +376,7 @@ export class RagService {
 
     if (matched.length === 0) {
       let noSourceAnswer =
-        "No dispongo de una fuente fiable para esa consulta en este momento. Te recomiendo revisar los canales oficiales del Ayuntamiento.";
+        "No dispongo de una fuente fiable para esa consulta en este momento. Te recomiendo revisar los canales oficiales del Principado de Asturias o reformular la pregunta.";
       const topicAlerts = await this.getAlertsMatchingQuestion(normalized);
       if (topicAlerts.length > 0) {
         const prefix = topicAlerts.map((a) => `[Aviso] ${a.title}: ${a.message}`).join(" ");
@@ -559,13 +555,11 @@ export class RagService {
             {
               role: "system",
               content:
-                `Eres el asistente de salud y bienestar de SHA Wellness Clinic. ` +
-                `Responde en ${languageName} con tono claro, empático y breve. ` +
-                "Habla de hábitos, descanso, actividad, nutrición general y protocolos de bienestar según el contexto. " +
-                "No inventes diagnósticos ni recomiendes medicación; ante síntomas graves deriva a profesional. " +
-                "Usa solo el contexto proporcionado y no inventes datos. " +
-                "Si el contexto no alcanza, dilo y pide una aclaración. " +
-                "No ofrezcas guías de turismo, playas, transporte ni actividades de ocio de ciudad." +
+                `Eres el asistente virtual del Principado de Asturias. ` +
+                `Responde en ${languageName} con tono claro, cercano e institucional. ` +
+                "Usa solo el contexto recuperado de fuentes oficiales; no inventes normativa, plazos, importes ni trámites. " +
+                "Si el contexto no alcanza, dilo con naturalidad y sugiere consultar la web o los canales oficiales del Principado. " +
+                "No des asesoramiento legal vinculante ni sustituyas la atención presencial cuando el trámite lo requiera." +
                 wearableSystemHint +
                 noWearablesDetailHint,
             },
@@ -658,13 +652,13 @@ export class RagService {
   private getGreetingForLanguage(language: AskQuestionDto["language"]): string {
     const greetings: Record<AskQuestionDto["language"], string> = {
       ES:
-        "Hola, soy tu asistente de bienestar de SHA. Puedo orientarte sobre descanso, actividad, manejo del estrés y cuidado integral con la información y protocolos disponibles. Cuéntame cómo te sientes o qué necesitas.",
+        "Hola, soy el asistente del Principado de Asturias. Puedo ayudarte con la información oficial que tenemos cargada sobre el tema: trámites, ayudas, servicios y orientación general. ¿En qué puedo ayudarte?",
       EN:
-        "Hello, I'm your SHA wellness assistant. I can help with sleep, activity, stress management, and holistic care using the information and protocols we have. How are you feeling, or what do you need today?",
+        "Hello, I'm the Principality of Asturias assistant. I can help with official information we have on file: procedures, grants, services and general guidance. How can I help you?",
       DE:
-        "Hallo, ich bin Ihr SHA-Wellness-Assistent. Ich kann zu Schlaf, Bewegung, Stressmanagement und ganzheitlicher Vorsorge anhand unserer Informationen und Protokolle beraten. Wie fühlen Sie sich, oder womit kann ich Ihnen helfen?",
+        "Hallo, ich bin der Assistent des Fürstentums Asturien. Ich kann Ihnen mit offiziellen Informationen zu Verfahren, Förderungen und Dienstleistungen helfen. Womit kann ich Ihnen helfen?",
       FR:
-        "Bonjour, je suis votre assistant bien-être SHA. Je peux vous accompagner sur le sommeil, l'activité, le stress et les soins globaux d'après nos informations et protocoles. Comment vous sentez-vous, ou de quoi avez-vous besoin ?",
+        "Bonjour, je suis l'assistant de la Principauté des Asturies. Je peux vous aider avec les informations officielles disponibles : démarches, aides et services. Comment puis-je vous aider ?",
     };
     return greetings[language] ?? greetings.ES;
   }

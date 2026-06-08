@@ -32,11 +32,11 @@ export default function AdminSidebar() {
     >
       {/* Logo */}
       <div className="flex items-center gap-3 px-4 h-16 border-b border-sidebar-border flex-shrink-0">
-        <img src={logo} alt="Torremolinos" className="w-8 h-8 rounded object-contain" />
+        <img src={logo} alt="Principado de Asturias" className="w-8 h-8 rounded object-contain" />
         {!collapsed && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col min-w-0">
             <span className="text-sm font-semibold text-sidebar-accent-foreground truncate">CivicAvatar</span>
-            <span className="text-[10px] text-sidebar-muted truncate">Torremolinos</span>
+            <span className="text-[10px] text-sidebar-muted truncate">Principado de Asturias</span>
           </motion.div>
         )}
       </div>

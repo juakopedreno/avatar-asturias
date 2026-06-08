@@ -32,7 +32,7 @@ async function bootstrap() {
   );
 
   const swaggerConfig = new DocumentBuilder()
-    .setTitle("Avatar Torremolinos API")
+    .setTitle("Avatar Principado de Asturias API")
     .setDescription("API base para backoffice, conversacion y servicios de IA.")
     .setVersion("0.1.0")
     .addBearerAuth()

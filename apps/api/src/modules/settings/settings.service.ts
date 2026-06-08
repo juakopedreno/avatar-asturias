@@ -13,7 +13,7 @@ export class SettingsService {
 
   private readonly defaultSettings: UpdateSettingsDto = {
     branding: {
-      name: "Asistente Torremolinos",
+      name: "Asistente Principado de Asturias",
       primaryColor: "#00A3A3",
     },
     channels: [

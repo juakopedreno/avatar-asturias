@@ -1,22 +1,22 @@
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import { Bot, Globe, Database, BarChart3, ShieldCheck, MessageSquare, Mic, ChevronRight, CheckCircle2, Zap, Lock, Languages } from 'lucide-react';
-import logo from '@/assets/sha-logo.png';
+import { Bot, Database, BarChart3, ShieldCheck, MessageSquare, Mic, ChevronRight, CheckCircle2, Zap, Lock, Languages } from 'lucide-react';
+import logo from '@/assets/torremolinos-logo-alt.png';
 
 const features = [
   { icon: Bot, title: 'Avatar Hiperrealista', desc: 'Interacción natural por voz y texto con un avatar conversacional de última generación.' },
-  { icon: Languages, title: 'Multiidioma Nativo', desc: '6+ idiomas con detección automática. Español, inglés, alemán, francés y más.' },
-  { icon: Database, title: 'Fuentes Verificadas', desc: 'Respuestas trazables basadas exclusivamente en fuentes oficiales y verificadas.' },
-  { icon: BarChart3, title: 'Analítica Avanzada', desc: 'Métricas en tiempo real de uso, satisfacción, idiomas y temas más consultados.' },
-  { icon: ShieldCheck, title: 'Auditoría Completa', desc: 'Trazabilidad total de cambios, accesos y modificaciones del sistema.' },
-  { icon: Lock, title: 'Privacidad y RGPD', desc: 'Cumplimiento normativo, anonimización de datos y retención configurable.' },
+  { icon: Languages, title: 'Multiidioma', desc: 'Español, inglés, alemán y francés con detección automática según el usuario.' },
+  { icon: Database, title: 'Fuentes Verificadas', desc: 'Respuestas trazables basadas en documentación oficial ingestada en el panel.' },
+  { icon: BarChart3, title: 'Analítica', desc: 'Métricas de uso, idiomas y temas más consultados para mejorar el servicio.' },
+  { icon: ShieldCheck, title: 'Auditoría', desc: 'Trazabilidad de cambios, accesos y publicaciones en el backoffice.' },
+  { icon: Lock, title: 'Privacidad y RGPD', desc: 'Cumplimiento normativo, retención configurable y control de datos.' },
 ];
 
 const useCases = [
-  { title: 'Centros de bienestar', desc: 'Acompañamiento 24/7 a pacientes y huéspedes en su idioma con orientación de bienestar personalizada.' },
-  { title: 'Puntos de atención clínica', desc: 'Puntos de atención en recepción y zonas comunes con experiencia inmersiva y guiada.' },
-  { title: 'Portal de paciente', desc: 'Widget integrado en web y app para resolver dudas frecuentes de salud y bienestar.' },
-  { title: 'Programas y retiros wellness', desc: 'Asistente virtual para programas de bienestar, retiros y seguimiento personalizado.' },
+  { title: 'Atención ciudadana', desc: 'Resolución de dudas frecuentes sobre trámites, ayudas y servicios del Principado.' },
+  { title: 'Puntos de información', desc: 'Quioscos o pantallas en oficinas con avatar que guía al ciudadano en su idioma.' },
+  { title: 'Portal web', desc: 'Asistente embebible en la web institucional con el mismo corpus de conocimiento.' },
+  { title: 'Temas sectoriales amplios', desc: 'Turismo, empleo, cultura, medio ambiente u otros ámbitos con fuentes dedicadas en el panel.' },
 ];
 
 const fadeUp = {
@@ -29,12 +29,11 @@ const fadeUp = {
 export default function Landing() {
   return (
     <div className="min-h-screen bg-background">
-      {/* Nav */}
       <nav className="fixed top-0 w-full z-50 bg-card/80 backdrop-blur-xl border-b border-border">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img src={logo} alt="Torremolinos" className="h-8" />
-            <span className="font-semibold text-foreground">SHA Wellness Avatar</span>
+            <img src={logo} alt="Principado de Asturias" className="h-8" />
+            <span className="font-semibold text-foreground">Avatar Asturias</span>
           </div>
           <div className="hidden md:flex items-center gap-8 text-sm text-muted-foreground">
             <a href="#features" className="hover:text-foreground transition-colors">Funcionalidades</a>
@@ -50,20 +49,19 @@ export default function Landing() {
         </div>
       </nav>
 
-      {/* Hero */}
       <section className="pt-32 pb-20 px-6">
         <div className="max-w-7xl mx-auto text-center">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
             <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/8 border border-primary/15 text-primary text-xs font-medium mb-6">
               <Zap className="w-3.5 h-3.5" />
-              Asistente de salud conversacional
+              Asistente institucional conversacional
             </div>
             <h1 className="text-4xl md:text-6xl font-bold tracking-tight leading-[1.1] mb-6">
               Tu asistente visual<br />
-              <span className="text-gradient">para bienestar integral</span>
+              <span className="text-gradient">del Principado de Asturias</span>
             </h1>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto mb-8 leading-relaxed">
-              Un asistente de salud con avatar hiperrealista para acompañar a pacientes y huéspedes con orientación de bienestar, hábitos saludables y atención personalizada, con respuestas trazables y seguras.
+              Un avatar hiperrealista que responde con información verificada sobre el tema que configures en el panel: trámites, ayudas, normativa, turismo y más, con citas a fuentes oficiales.
             </p>
             <div className="flex items-center justify-center gap-4">
               <Link to="/demo" className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-xl text-sm font-medium hover:opacity-90 transition-all shadow-lg shadow-primary/20">
@@ -75,47 +73,34 @@ export default function Landing() {
             </div>
           </motion.div>
 
-          {/* Hero Visual */}
           <motion.div
             initial={{ opacity: 0, y: 40 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.3 }}
-            className="mt-16 relative max-w-5xl mx-auto"
+            transition={{ duration: 0.8, delay: 0.2 }}
+            className="mt-16 relative max-w-4xl mx-auto"
           >
-            <div className="rounded-2xl overflow-hidden border border-border card-elevated bg-card">
-              <div className="bg-gradient-to-br from-foreground to-foreground/80 aspect-[16/9] flex items-center justify-center relative overflow-hidden">
-                <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.3) 1px, transparent 0)', backgroundSize: '32px 32px' }} />
-                <div className="relative z-10 text-center">
-                  <div className="w-32 h-32 mx-auto mb-6 rounded-full bg-primary/20 border-2 border-primary/40 flex items-center justify-center animate-float">
-                    <Bot className="w-16 h-16 text-primary" />
-                  </div>
-                  <div className="flex items-center gap-3 px-5 py-2.5 glass rounded-full mx-auto w-fit">
-                    <div className="w-2.5 h-2.5 bg-primary rounded-full animate-pulse-soft" />
-                    <span className="text-sm font-medium text-primary-foreground/90 tracking-wide">AVATAR DISPONIBLE</span>
-                    <Mic className="w-4 h-4 text-primary" />
-                  </div>
+            <div className="aspect-video rounded-2xl bg-gradient-to-br from-primary/5 via-card to-primary/10 border border-border card-elevated flex items-center justify-center overflow-hidden">
+              <div className="text-center p-8">
+                <div className="w-20 h-20 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
+                  <Bot className="w-10 h-10 text-primary" />
                 </div>
+                <p className="text-sm text-muted-foreground">Avatar conversacional · Voz y texto · Fuentes verificadas</p>
               </div>
-            </div>
-            <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 px-6 py-3 bg-card rounded-xl border border-border card-elevated flex items-center gap-3">
-              <Globe className="w-4 h-4 text-primary" />
-              <span className="text-xs font-medium">ES · EN · DE · FR · IT · PT</span>
             </div>
           </motion.div>
         </div>
       </section>
 
-      {/* Features */}
-      <section id="features" className="py-20 px-6 bg-card/50">
+      <section id="features" className="py-20 px-6 bg-muted/30">
         <div className="max-w-7xl mx-auto">
           <motion.div {...fadeUp} className="text-center mb-14">
-            <h2 className="text-3xl font-bold mb-3">Funcionalidades de Salud Digital</h2>
-            <p className="text-muted-foreground max-w-xl mx-auto">Una plataforma completa para acompañamiento de bienestar y asistencia sanitaria digital.</p>
+            <h2 className="text-3xl font-bold mb-3">Funcionalidades</h2>
+            <p className="text-muted-foreground max-w-xl mx-auto">Misma plataforma de ingesta y gobierno del conocimiento que en proyectos enterprise.</p>
           </motion.div>
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
             {features.map((f, i) => (
-              <motion.div key={f.title} {...fadeUp} transition={{ ...fadeUp.transition, delay: i * 0.08 }} className="bg-card rounded-xl p-6 card-elevated group">
-                <div className="w-10 h-10 rounded-xl bg-primary/8 flex items-center justify-center mb-4 group-hover:bg-primary/15 transition-colors">
+              <motion.div key={f.title} {...fadeUp} transition={{ ...fadeUp.transition, delay: i * 0.08 }} className="bg-card rounded-xl p-6 card-elevated border border-border">
+                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
                   <f.icon className="w-5 h-5 text-primary" />
                 </div>
                 <h3 className="text-base font-semibold mb-2">{f.title}</h3>
@@ -126,12 +111,11 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* Use Cases */}
       <section id="usecases" className="py-20 px-6">
         <div className="max-w-7xl mx-auto">
           <motion.div {...fadeUp} className="text-center mb-14">
-            <h2 className="text-3xl font-bold mb-3">Casos de Uso Clínico y Wellness</h2>
-            <p className="text-muted-foreground max-w-xl mx-auto">Adaptable a clínicas, centros wellness y entornos de atención preventiva.</p>
+            <h2 className="text-3xl font-bold mb-3">Casos de uso</h2>
+            <p className="text-muted-foreground max-w-xl mx-auto">Un tema amplio, un corpus amplio: tú defines el alcance desde el panel de fuentes.</p>
           </motion.div>
           <div className="grid md:grid-cols-2 gap-5">
             {useCases.map((uc, i) => (
@@ -147,33 +131,33 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* CTA */}
       <section id="demo" className="py-20 px-6">
         <div className="max-w-3xl mx-auto text-center">
           <motion.div {...fadeUp} className="bg-gradient-to-br from-foreground to-foreground/90 rounded-2xl p-12 text-primary-foreground relative overflow-hidden">
             <div className="absolute inset-0 opacity-5" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.5) 1px, transparent 0)', backgroundSize: '24px 24px' }} />
             <div className="relative z-10">
-              <h2 className="text-2xl md:text-3xl font-bold mb-4">¿Listo para transformar la experiencia de salud y bienestar?</h2>
-              <p className="text-primary-foreground/70 mb-8 max-w-lg mx-auto">Solicite una demo personalizada y descubra cómo SHA Wellness Avatar puede optimizar la comunicación de su municipio.</p>
-              <div className="flex items-center justify-center gap-4">
+              <h2 className="text-2xl md:text-3xl font-bold mb-4">Prueba el asistente con tu corpus</h2>
+              <p className="text-primary-foreground/70 mb-8 max-w-lg mx-auto">
+                Ingesta documentación en el panel admin y valida respuestas en la demo interactiva con avatar.
+              </p>
+              <div className="flex items-center justify-center gap-4 flex-wrap">
                 <Link to="/demo" className="px-6 py-3 bg-primary text-primary-foreground rounded-xl text-sm font-medium hover:opacity-90 transition-all">
                   Ver Demo Interactiva
                 </Link>
-                <button className="px-6 py-3 bg-primary-foreground/10 text-primary-foreground rounded-xl text-sm font-medium border border-primary-foreground/20 hover:bg-primary-foreground/20 transition-all">
-                  Solicitar Información
-                </button>
+                <Link to="/admin" className="px-6 py-3 bg-primary-foreground/10 text-primary-foreground rounded-xl text-sm font-medium border border-primary-foreground/20 hover:bg-primary-foreground/20 transition-all">
+                  Panel de ingesta
+                </Link>
               </div>
             </div>
           </motion.div>
         </div>
       </section>
 
-      {/* Footer */}
       <footer className="border-t border-border py-8 px-6">
-        <div className="max-w-7xl mx-auto flex items-center justify-between text-sm text-muted-foreground">
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
           <div className="flex items-center gap-3">
-            <img src={logo} alt="Torremolinos" className="h-6" />
-            <span>SHA Wellness Avatar © 2026</span>
+            <img src={logo} alt="Principado de Asturias" className="h-6" />
+            <span>Avatar Principado de Asturias © 2026</span>
           </div>
           <div className="flex items-center gap-6">
             <span>Privacidad</span>
