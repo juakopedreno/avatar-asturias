@@ -35,13 +35,13 @@ git push -u asturias asturias:main
 | API | Railway/Render → Dockerfile en raíz |
 | DB | PostgreSQL dedicado (`avatar_asturias`) |
 
-Variables mínimas (ver `.env.asturias.example` en la raíz).
+Variables mínimas (ver `docs/asturias/env.example`).
 
 ## Puesta en marcha local
 
 ```bash
 npm install
-cp .env.asturias.example .env   # ajustar DATABASE_URL, OPENAI, ANAM_*
+cp docs/asturias/env.example .env   # ajustar DATABASE_URL, OPENAI, ANAM_*
 docker compose up -d            # Postgres local
 npm run db:deploy -w @avatar/api
 npm run db:seed -w @avatar/api

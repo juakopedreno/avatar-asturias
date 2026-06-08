@@ -16,7 +16,7 @@ Plataforma de asistente virtual con avatar hiperrealista (Anam), RAG sobre fuent
 
 ```bash
 npm install
-cp .env.asturias.example .env   # ajustar variables
+cp docs/asturias/env.example .env   # ajustar variables
 docker compose up -d
 npm run db:deploy -w @avatar/api
 npm run db:seed -w @avatar/api
