@@ -14,10 +14,20 @@
     "hardening:bootstrap": "bash ./scripts/hardening-bootstrap.sh",
     "hardening:smoke": "bash ./scripts/hardening-smoke.sh",
     "build": "npm run build --workspaces --if-present",
+    "build:web": "npm run build -w @avatar/web",
+    "vercel-build": "bash ./scripts/vercel-build-web.sh",
     "lint": "npm run lint --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "format": "prettier --check .",
     "format:write": "prettier --write ."
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.21",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.8.3",
+    "vite": "^5.4.19"
   },
   "devDependencies": {
     "dotenv-cli": "^7.4.2",
