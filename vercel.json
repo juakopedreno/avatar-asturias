@@ -1,7 +1,7 @@
 {
   "buildCommand": "npm run build -w @avatar/web",
   "outputDirectory": "apps/web/dist",
-  "installCommand": "npm ci --include=dev",
+  "installCommand": "NPM_CONFIG_PRODUCTION=false npm ci",
   "framework": null,
   "rewrites": [
     { "source": "/favicon.ico", "destination": "/logo-torremolinos.png?v=3" },
