@@ -15,7 +15,7 @@
     "hardening:smoke": "bash ./scripts/hardening-smoke.sh",
     "build": "npm run build --workspaces --if-present",
     "build:web": "npm run build -w @avatar/web",
-    "vercel-build": "bash ./scripts/vercel-build-web.sh",
+    "build:vercel-web": "bash ./scripts/vercel-build-web.sh",
     "lint": "npm run lint --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "format": "prettier --check .",
