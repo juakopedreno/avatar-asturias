@@ -1,7 +1,7 @@
 {
-  "buildCommand": "bash scripts/vercel-build-web.sh",
+  "installCommand": "cd \"$(git rev-parse --show-toplevel)\" && npm install",
+  "buildCommand": "cd \"$(git rev-parse --show-toplevel)\" && npm run build:vercel-web",
   "outputDirectory": "apps/web/dist",
-  "installCommand": "npm install",
   "framework": null,
   "rewrites": [
     { "source": "/favicon.ico", "destination": "/logo-torremolinos.png?v=3" },
