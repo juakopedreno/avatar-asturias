@@ -6,6 +6,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import Landing from "./pages/Landing";
 import AvatarDemo from "./pages/AvatarDemo";
+import FeriaDisplay from "./pages/FeriaDisplay";
+import FeriaKiosk from "./pages/FeriaKiosk";
 import AdminLayout from "./components/layout/AdminLayout";
 import Dashboard from "./pages/admin/Dashboard";
 import ContentManagement from "./pages/admin/ContentManagement";
@@ -51,6 +53,8 @@ const App = () => {
           <Routes>
             <Route path="/" element={<Landing />} />
             <Route path="/demo" element={<AvatarDemo />} />
+            <Route path="/feria/display" element={<FeriaDisplay />} />
+            <Route path="/feria/kiosk" element={<FeriaKiosk />} />
             <Route path="/admin/login" element={<AdminLoginPage />} />
             <Route path="/admin" element={<AdminLayout />}>
               <Route index element={<Dashboard />} />

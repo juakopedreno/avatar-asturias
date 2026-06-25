@@ -13,8 +13,8 @@ export class SettingsService {
 
   private readonly defaultSettings: UpdateSettingsDto = {
     branding: {
-      name: "Asistente Principado de Asturias",
-      primaryColor: "#00A3A3",
+      name: "CoVA — Principado de Asturias",
+      primaryColor: "#0055A4",
     },
     channels: [
       { id: "web", name: "Widget Web", active: true },

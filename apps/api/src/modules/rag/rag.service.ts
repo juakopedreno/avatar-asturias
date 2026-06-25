@@ -4,6 +4,7 @@ import { PrismaService } from "../../prisma/prisma.service";
 import { AlertsService } from "../alerts/alerts.service";
 import { ContentService } from "../content/content.service";
 import { SourcesService } from "../sources/sources.service";
+import { COVA_OPENING_GREETING, COVA_IDENTITY_ANSWER, COVA_IDENTITY_ANSWER_EN } from "../persona/asturias-cova.prompt";
 import { AskQuestionDto } from "./dto/ask-question.dto";
 import { IngestApiDto } from "./dto/ingest-api.dto";
 import { IngestWebDto } from "./dto/ingest-web.dto";
@@ -245,6 +246,31 @@ export class RagService {
       });
       return {
         answer: greetingAnswer,
+        uncertainty: false,
+        sources: [],
+        guardrails: {
+          offTopicBlocked: false,
+          personalDataUsedForTraining: false,
+        },
+        conversationId: conversation.id,
+      };
+    }
+
+    if (this.isAssistantIdentityQuestion(normalized)) {
+      const identityAnswer = this.getIdentityAnswerForLanguage(dto.language);
+      const conversation = await this.prisma.conversation.create({
+        data: {
+          language: dto.language,
+          messages: {
+            create: [
+              { role: "user", content: dto.question },
+              { role: "assistant", content: identityAnswer },
+            ],
+          },
+        },
+      });
+      return {
+        answer: identityAnswer,
         uncertainty: false,
         sources: [],
         guardrails: {
@@ -650,17 +676,61 @@ export class RagService {
   }
 
   private getGreetingForLanguage(language: AskQuestionDto["language"]): string {
-    const greetings: Record<AskQuestionDto["language"], string> = {
-      ES:
-        "Hola, soy el asistente del Principado de Asturias. Puedo ayudarte con la información oficial que tenemos cargada sobre el tema: trámites, ayudas, servicios y orientación general. ¿En qué puedo ayudarte?",
+    if (language === "ES") {
+      return COVA_OPENING_GREETING;
+    }
+    const greetings: Record<Exclude<AskQuestionDto["language"], "ES">, string> = {
       EN:
-        "Hello, I'm the Principality of Asturias assistant. I can help with official information we have on file: procedures, grants, services and general guidance. How can I help you?",
+        "Hello, I'm CoVA, the Principality of Asturias virtual assistant. How can I help you today with official information on grants, procedures and services?",
       DE:
-        "Hallo, ich bin der Assistent des Fürstentums Asturien. Ich kann Ihnen mit offiziellen Informationen zu Verfahren, Förderungen und Dienstleistungen helfen. Womit kann ich Ihnen helfen?",
+        "Hallo, ich bin CoVA, der virtuelle Assistent des Fürstentums Asturien. Womit kann ich Ihnen heute helfen?",
       FR:
-        "Bonjour, je suis l'assistant de la Principauté des Asturies. Je peux vous aider avec les informations officielles disponibles : démarches, aides et services. Comment puis-je vous aider ?",
+        "Bonjour, je suis CoVA, l'assistant virtuel de la Principauté des Asturies. Comment puis-je vous aider aujourd'hui ?",
     };
-    return greetings[language] ?? greetings.ES;
+    return greetings[language] ?? COVA_OPENING_GREETING;
+  }
+
+  private getIdentityAnswerForLanguage(language: AskQuestionDto["language"]): string {
+    if (language === "EN") return COVA_IDENTITY_ANSWER_EN;
+    return COVA_IDENTITY_ANSWER;
+  }
+
+  private isAssistantIdentityQuestion(normalizedQuestion: string): boolean {
+    const q = normalizedQuestion.trim();
+    if (!q) return false;
+
+    const identityPhrases = [
+      "que es cova",
+      "quien es cova",
+      "que eres",
+      "quien eres",
+      "que eres tu",
+      "quien eres tu",
+      "que es co va",
+      "presentate",
+      "presentacion",
+      "cuentame sobre cova",
+      "hablame de cova",
+      "que puedes hacer",
+      "para que sirves",
+      "que haces",
+      "que es el asistente",
+      "que es la asistente",
+      "que es este asistente",
+      "what is cova",
+      "who is cova",
+      "who are you",
+      "what are you",
+    ];
+
+    if (identityPhrases.some((phrase) => q.includes(phrase))) {
+      return true;
+    }
+
+    const mentionsCova = q.includes("cova") || q.includes("co va");
+    const asksDefinition =
+      q.includes("que es") || q.includes("quien es") || q.includes("que eres") || q.includes("quien eres");
+    return mentionsCova && asksDefinition;
   }
 
   private resolveLanguageName(language: AskQuestionDto["language"]): string {

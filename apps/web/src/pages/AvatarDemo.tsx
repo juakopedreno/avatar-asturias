@@ -586,8 +586,8 @@ export default function AvatarDemo() {
   const chatHeader = (
     <div className="p-4 border-b border-border flex items-center justify-between flex-shrink-0 gap-2">
       <div className="min-w-0">
-        <h2 className="font-semibold text-sm">Asistente del Principado</h2>
-        <p className="text-[11px] text-muted-foreground">Principado de Asturias · Siempre disponible</p>
+        <h2 className="font-semibold text-sm">CoVA</h2>
+        <p className="text-[11px] text-muted-foreground">Principado de Asturias · Asistente virtual con IA</p>
         {ENABLE_WEARABLES ? (
           <p className="text-[10px] text-muted-foreground mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
             <span className="font-medium text-foreground/80">Pulsera</span>

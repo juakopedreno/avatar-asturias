@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { v4 as uuid } from "uuid";
+import { ANAM_DELIVERY_PROMPT } from "../../persona/asturias-cova.prompt";
 import { AvatarProvider } from "../avatar-provider.interface";
 import { AvatarSessionRequest, AvatarSessionResponse } from "../avatar.types";
 
@@ -82,7 +83,7 @@ export class AnamAvatarProvider implements AvatarProvider {
   }
 
   private buildSessionPayload(request: AvatarSessionRequest): Record<string, unknown> {
-    const personaId = process.env.ANAM_PERSONA_ID;
+    const personaId = process.env.ANAM_PERSONA_ID?.trim();
     if (personaId) {
       return {
         personaConfig: {
@@ -95,19 +96,18 @@ export class AnamAvatarProvider implements AvatarProvider {
     const resolvedVoiceId = configuredVoice || undefined;
     const configuredLlmId = process.env.ANAM_LLM_ID?.trim();
     const configuredModel = process.env.ANAM_AVATAR_MODEL?.trim();
+    const configuredAvatarId = process.env.ANAM_AVATAR_ID?.trim();
     const maxLength = Number.parseInt(process.env.ANAM_MAX_SESSION_LENGTH_SECONDS ?? "", 10);
     return {
       personaConfig: {
-        name: process.env.ANAM_PERSONA_NAME ?? "Asistente Principado de Asturias",
-        avatarId: process.env.ANAM_AVATAR_ID ?? "30fa96d0-26c4-4e55-94a0-517025942e18",
+        name: process.env.ANAM_PERSONA_NAME ?? "CoVA",
+        avatarId: configuredAvatarId || "30fa96d0-26c4-4e55-94a0-517025942e18",
         ...(configuredModel === "cara-2" || configuredModel === "cara-3"
           ? { avatarModel: configuredModel }
           : {}),
         ...(resolvedVoiceId ? { voiceId: resolvedVoiceId } : {}),
         ...(configuredLlmId ? { llmId: configuredLlmId } : {}),
-        systemPrompt:
-          process.env.ANAM_SYSTEM_PROMPT ??
-          "Eres el asistente virtual del Principado de Asturias. Pronuncia exactamente el texto que te indiquen en cada turno; no improvises datos ni normativa. Tono claro, cercano e institucional.",
+        systemPrompt: process.env.ANAM_SYSTEM_PROMPT ?? ANAM_DELIVERY_PROMPT,
         languageCode: this.resolveLanguage(request.language),
         ...(Number.isFinite(maxLength) ? { maxSessionLengthSeconds: maxLength } : {}),
         ...(process.env.ANAM_SKIP_GREETING
