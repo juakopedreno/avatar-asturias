@@ -16,4 +16,4 @@ WORKDIR /app/apps/api
 RUN npx prisma generate && npm run build
 
 # Railway/Render exponen PORT; migraciones al arranque
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/main.js"]
+CMD ["sh", "-c", "set -e; echo \"Starting: prisma migrate deploy\"; npx prisma migrate deploy; echo \"Starting: node dist/main.js\"; node dist/main.js"]
