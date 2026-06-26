@@ -38,9 +38,10 @@ export default function FeriaDisplay() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const clientRef = useRef<AnamClientHandle | null>(null);
   const openingSessionRef = useRef(false);
-  const greetedRef = useRef(false);
+  const greetingDeliveredRef = useRef(false);
   const speakGenerationRef = useRef(0);
   const [avatarConnected, setAvatarConnected] = useState(false);
+  const [streamReady, setStreamReady] = useState(false);
   const [audioEnabled, setAudioEnabled] = useState(false);
   const [avatarSpeaking, setAvatarSpeaking] = useState(false);
   const [subtitle, setSubtitle] = useState<string | null>(null);
@@ -78,18 +79,26 @@ export default function FeriaDisplay() {
       videoRef.current.srcObject = null;
     }
     setAvatarConnected(false);
+    setStreamReady(false);
   };
 
-  const enableAudio = async () => {
-    if (!videoRef.current) return;
-    videoRef.current.muted = false;
-    videoRef.current.volume = 1;
-    try {
-      await videoRef.current.play();
-      setAudioEnabled(true);
-    } catch {
-      // Requiere gesto del usuario en algunos navegadores.
+  const ensureVideoPlaying = async (unmute = false) => {
+    const video = videoRef.current;
+    if (!video) return false;
+    if (unmute) {
+      video.muted = false;
+      video.volume = 1;
     }
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+      try {
+        await video.play();
+        if (unmute) setAudioEnabled(true);
+        return true;
+      } catch {
+        await new Promise((resolve) => setTimeout(resolve, 200));
+      }
+    }
+    return false;
   };
 
   const interruptAvatar = useCallback(() => {
@@ -98,13 +107,18 @@ export default function FeriaDisplay() {
   }, []);
 
   const speakWithAvatar = useCallback(
-    async (content: string) => {
-      if (!clientRef.current || !avatarConnected || !content.trim()) return;
+    async (content: string, options?: { preferAudio?: boolean }) => {
+      if (!clientRef.current || !avatarConnected || !content.trim()) return false;
 
       interruptAvatar();
       const generation = ++speakGenerationRef.current;
 
-      await enableAudio();
+      if (options?.preferAudio) {
+        await ensureVideoPlaying(true);
+      } else {
+        await ensureVideoPlaying(false);
+      }
+
       setSubtitle(content);
       setShowWelcome(false);
       setAvatarSpeaking(true);
@@ -113,6 +127,9 @@ export default function FeriaDisplay() {
         if (typeof clientRef.current.talk === "function") {
           await clientRef.current.talk(content);
         }
+        return true;
+      } catch {
+        return false;
       } finally {
         if (generation === speakGenerationRef.current) {
           setAvatarSpeaking(false);
@@ -121,6 +138,22 @@ export default function FeriaDisplay() {
     },
     [avatarConnected, interruptAvatar],
   );
+
+  const deliverOpeningGreeting = useCallback(async () => {
+    if (greetingDeliveredRef.current || !avatarConnected || !openingGreeting.trim()) return;
+    const ok = await speakWithAvatar(openingGreeting, { preferAudio: audioEnabled });
+    if (ok) greetingDeliveredRef.current = true;
+  }, [avatarConnected, audioEnabled, openingGreeting, speakWithAvatar]);
+
+  const enableAudio = useCallback(async () => {
+    const ok = await ensureVideoPlaying(true);
+    if (ok && avatarConnected && openingGreeting.trim()) {
+      greetingDeliveredRef.current = false;
+      const delivered = await speakWithAvatar(openingGreeting, { preferAudio: true });
+      if (delivered) greetingDeliveredRef.current = true;
+    }
+    return ok;
+  }, [avatarConnected, openingGreeting, speakWithAvatar]);
 
   const connectAnam = async (sessionToken: string) => {
     await waitForVideoElement();
@@ -131,21 +164,19 @@ export default function FeriaDisplay() {
     client.addListener?.(AnamEvent.TALK_STREAM_INTERRUPTED, () => setAvatarSpeaking(false));
     await client.streamToVideoElement(VIDEO_ID);
     if (videoRef.current) {
-      try {
-        await videoRef.current.play();
-      } catch {
-        // ignore
-      }
+      videoRef.current.muted = true;
+      await ensureVideoPlaying(false);
       await waitForVideoFrame(videoRef.current);
+      setStreamReady(true);
     }
     setAvatarConnected(true);
-    await enableAudio();
   };
 
   const openAvatarSession = async () => {
     if (openingSessionRef.current) return;
     openingSessionRef.current = true;
     try {
+      greetingDeliveredRef.current = false;
       await disconnectAnam();
       const response = await apiPost<AvatarSessionResponse>("/avatar/session", {
         language: "ES",
@@ -170,13 +201,9 @@ export default function FeriaDisplay() {
   }, []);
 
   useEffect(() => {
-    if (!avatarConnected || greetedRef.current) return;
-    greetedRef.current = true;
-    const timer = window.setTimeout(() => {
-      void speakWithAvatar(openingGreeting);
-    }, 1500);
-    return () => window.clearTimeout(timer);
-  }, [avatarConnected, openingGreeting, speakWithAvatar]);
+    if (!avatarConnected || !streamReady) return;
+    void deliverOpeningGreeting();
+  }, [avatarConnected, streamReady, openingGreeting, deliverOpeningGreeting]);
 
   useEffect(() => {
     const channel = createFeriaChannel();
@@ -307,7 +334,7 @@ export default function FeriaDisplay() {
             event.stopPropagation();
             void enableAudio();
           }}
-          className={`absolute left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 rounded-full px-5 py-3 text-sm font-medium text-white transition-colors hover:bg-white/15 ${
+          className={`absolute left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 rounded-full px-5 py-3 text-sm font-medium text-white transition-colors hover:bg-white/15 animate-pulse ${
             showInput ? "bottom-36" : "bottom-8"
           }`}
           style={{
@@ -317,7 +344,7 @@ export default function FeriaDisplay() {
           }}
         >
           <Volume2 className="h-5 w-5" />
-          Activar audio
+          Toca para escuchar a CoVA
         </button>
       ) : null}
     </div>
