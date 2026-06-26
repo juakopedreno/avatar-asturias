@@ -23,6 +23,22 @@ type AnamClientHandle = {
   stopStreaming?: () => void | Promise<void>;
 };
 
+/** Avisos automáticos de Anam (inactividad/desconexión) que no debe pronunciar el avatar. */
+const SYSTEM_NOTICE_PATTERNS = [
+  /disconnect/i,
+  /you will be disconnected/i,
+  /are you still there/i,
+  /inactiv/i,
+  /session.*(end|expire|timeout)/i,
+  /seconds if/i,
+];
+
+const isSystemNotice = (content: string): boolean => {
+  const text = content?.trim();
+  if (!text) return false;
+  return SYSTEM_NOTICE_PATTERNS.some((pattern) => pattern.test(text));
+};
+
 const VIDEO_ID = "feria-display-video";
 
 /** Fondo alineado con el escenario oscuro del avatar Anam / mockup del stand. */
@@ -40,6 +56,7 @@ export default function FeriaDisplay() {
   const openingSessionRef = useRef(false);
   const greetingDeliveredRef = useRef(false);
   const speakGenerationRef = useRef(0);
+  const unmountedRef = useRef(false);
   const [avatarConnected, setAvatarConnected] = useState(false);
   const [streamReady, setStreamReady] = useState(false);
   const [audioEnabled, setAudioEnabled] = useState(false);
@@ -155,13 +172,39 @@ export default function FeriaDisplay() {
     return ok;
   }, [avatarConnected, openingGreeting, speakWithAvatar]);
 
+  const silenceSystemNotice = useCallback((content: string) => {
+    if (!isSystemNotice(content)) return;
+    clientRef.current?.interruptPersona?.();
+    setAvatarSpeaking(false);
+    setSubtitle(null);
+  }, []);
+
   const connectAnam = async (sessionToken: string) => {
     await waitForVideoElement();
     const client = createClient(sessionToken, { disableInputAudio: true }) as AnamClientHandle;
     clientRef.current = client;
     client.addListener?.(AnamEvent.VIDEO_PLAY_STARTED, () => setAvatarConnected(true));
-    client.addListener?.(AnamEvent.CONNECTION_CLOSED, () => setAvatarConnected(false));
+    client.addListener?.(AnamEvent.CONNECTION_CLOSED, () => {
+      setAvatarConnected(false);
+      setStreamReady(false);
+      if (!unmountedRef.current) {
+        window.setTimeout(() => void openAvatarSession(), 1200);
+      }
+    });
     client.addListener?.(AnamEvent.TALK_STREAM_INTERRUPTED, () => setAvatarSpeaking(false));
+    client.addListener?.(AnamEvent.MESSAGE_STREAM_EVENT_RECEIVED, (event) => {
+      const payload = event as { role?: string; content?: string } | undefined;
+      if (payload?.role === "persona" || payload?.role === "assistant") {
+        silenceSystemNotice(payload.content ?? "");
+      }
+    });
+    client.addListener?.(AnamEvent.MESSAGE_HISTORY_UPDATED, (messages) => {
+      const list = messages as Array<{ role?: string; content?: string }> | undefined;
+      const last = list?.[list.length - 1];
+      if (last && (last.role === "persona" || last.role === "assistant")) {
+        silenceSystemNotice(last.content ?? "");
+      }
+    });
     await client.streamToVideoElement(VIDEO_ID);
     if (videoRef.current) {
       videoRef.current.muted = true;
@@ -193,8 +236,10 @@ export default function FeriaDisplay() {
   };
 
   useEffect(() => {
+    unmountedRef.current = false;
     void openAvatarSession();
     return () => {
+      unmountedRef.current = true;
       void disconnectAnam();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
