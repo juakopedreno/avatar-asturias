@@ -88,6 +88,9 @@ export class AnamAvatarProvider implements AvatarProvider {
       return {
         personaConfig: {
           personaId,
+          ...(process.env.ANAM_SKIP_GREETING
+            ? { skipGreeting: process.env.ANAM_SKIP_GREETING === "true" }
+            : {}),
         },
       };
     }
