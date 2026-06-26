@@ -4,7 +4,7 @@ import { PrismaService } from "../../prisma/prisma.service";
 import { AlertsService } from "../alerts/alerts.service";
 import { ContentService } from "../content/content.service";
 import { SourcesService } from "../sources/sources.service";
-import { COVA_OPENING_GREETING, COVA_IDENTITY_ANSWER, COVA_IDENTITY_ANSWER_EN } from "../persona/asturias-cova.prompt";
+import { COVA_OPENING_GREETING, COVA_IDENTITY_ANSWER, COVA_IDENTITY_ANSWER_EN, COVA_SMALL_TALK_ANSWER, COVA_SMALL_TALK_ANSWER_EN, COVA_THANKS_ANSWER, COVA_THANKS_ANSWER_EN } from "../persona/asturias-cova.prompt";
 import { AskQuestionDto } from "./dto/ask-question.dto";
 import { IngestApiDto } from "./dto/ingest-api.dto";
 import { IngestWebDto } from "./dto/ingest-web.dto";
@@ -246,6 +246,56 @@ export class RagService {
       });
       return {
         answer: greetingAnswer,
+        uncertainty: false,
+        sources: [],
+        guardrails: {
+          offTopicBlocked: false,
+          personalDataUsedForTraining: false,
+        },
+        conversationId: conversation.id,
+      };
+    }
+
+    if (this.isSmallTalk(normalized)) {
+      const smallTalkAnswer = this.getSmallTalkAnswerForLanguage(dto.language);
+      const conversation = await this.prisma.conversation.create({
+        data: {
+          language: dto.language,
+          messages: {
+            create: [
+              { role: "user", content: dto.question },
+              { role: "assistant", content: smallTalkAnswer },
+            ],
+          },
+        },
+      });
+      return {
+        answer: smallTalkAnswer,
+        uncertainty: false,
+        sources: [],
+        guardrails: {
+          offTopicBlocked: false,
+          personalDataUsedForTraining: false,
+        },
+        conversationId: conversation.id,
+      };
+    }
+
+    if (this.isThanks(normalized)) {
+      const thanksAnswer = this.getThanksAnswerForLanguage(dto.language);
+      const conversation = await this.prisma.conversation.create({
+        data: {
+          language: dto.language,
+          messages: {
+            create: [
+              { role: "user", content: dto.question },
+              { role: "assistant", content: thanksAnswer },
+            ],
+          },
+        },
+      });
+      return {
+        answer: thanksAnswer,
         uncertainty: false,
         sources: [],
         guardrails: {
@@ -690,6 +740,30 @@ export class RagService {
     return greetings[language] ?? COVA_OPENING_GREETING;
   }
 
+  private getSmallTalkAnswerForLanguage(language: AskQuestionDto["language"]): string {
+    if (language === "EN") return COVA_SMALL_TALK_ANSWER_EN;
+    const answers: Record<Exclude<AskQuestionDto["language"], "EN">, string> = {
+      ES: COVA_SMALL_TALK_ANSWER,
+      DE:
+        "Mir geht es gut, danke der Nachfrage! Ich bin CoVA, der virtuelle Assistent des Fürstentums Asturien. Kann ich Ihnen bei Zuschüssen, Verfahren oder Dienstleistungen helfen?",
+      FR:
+        "Très bien, merci de demander ! Je suis CoVA, l'assistant virtuel de la Principauté des Asturies. Puis-je vous aider avec des aides, démarches ou services ?",
+    };
+    return answers[language] ?? COVA_SMALL_TALK_ANSWER;
+  }
+
+  private getThanksAnswerForLanguage(language: AskQuestionDto["language"]): string {
+    if (language === "EN") return COVA_THANKS_ANSWER_EN;
+    const answers: Record<Exclude<AskQuestionDto["language"], "EN">, string> = {
+      ES: COVA_THANKS_ANSWER,
+      DE:
+        "Gern geschehen! Wenn Sie noch etwas zu Zuschüssen, Verfahren oder Dienstleistungen des Fürstentums Asturien brauchen, bin ich da.",
+      FR:
+        "Je vous en prie ! Si vous avez besoin d'autre chose sur les aides, démarches ou services de la Principauté des Asturies, je suis là.",
+    };
+    return answers[language] ?? COVA_THANKS_ANSWER;
+  }
+
   private getIdentityAnswerForLanguage(language: AskQuestionDto["language"]): string {
     if (language === "EN") return COVA_IDENTITY_ANSWER_EN;
     return COVA_IDENTITY_ANSWER;
@@ -815,8 +889,65 @@ export class RagService {
       "hey",
       "hello",
       "hi",
+      "saludos",
+      "buen dia",
     ]);
     return greetings.has(compact);
+  }
+
+  private matchesConversationalPhrase(normalizedQuestion: string, phrases: string[]): boolean {
+    const q = normalizedQuestion.trim();
+    if (!q) return false;
+    if (phrases.includes(q)) return true;
+
+    const parts = q
+      .split(/[,!.?]+/)
+      .map((part) => part.trim())
+      .filter(Boolean);
+    return parts.some((part) => phrases.includes(part));
+  }
+
+  private isSmallTalk(normalizedQuestion: string): boolean {
+    const phrases = [
+      "como estas",
+      "como te va",
+      "como te encuentras",
+      "como va",
+      "como van las cosas",
+      "que tal",
+      "que tal estas",
+      "que tal va",
+      "todo bien",
+      "como andas",
+      "como andamos",
+      "hola como estas",
+      "buenos dias como estas",
+      "how are you",
+      "how is it going",
+      "how are things",
+      "ca va",
+      "comment allez vous",
+      "wie geht es",
+      "wie gehts",
+    ];
+
+    return this.matchesConversationalPhrase(normalizedQuestion, phrases);
+  }
+
+  private isThanks(normalizedQuestion: string): boolean {
+    const phrases = [
+      "gracias",
+      "muchas gracias",
+      "mil gracias",
+      "te lo agradezco",
+      "muy amable",
+      "thank you",
+      "thanks",
+      "merci",
+      "danke",
+    ];
+
+    return this.matchesConversationalPhrase(normalizedQuestion, phrases);
   }
 
   /**
