@@ -219,14 +219,11 @@ export class RagService {
 
   async ask(dto: AskQuestionDto) {
     const normalized = this.normalizeForSearch(dto.question);
-    if (this.isGreeting(normalized)) {
-      let greetingAnswer = this.getGreetingForLanguage(dto.language);
-      const activeAlerts = await this.alertsService.findActive();
-      const greetingAlerts = activeAlerts.filter((a) => a.showOnGreeting);
-      if (greetingAlerts.length > 0) {
-        const alertText = greetingAlerts.map((a) => `[Aviso] ${a.title}: ${a.message}`).join(" ");
-        greetingAnswer = `${greetingAnswer} ${alertText}`.trim();
-      }
+    if (this.isCasualConversation(normalized)) {
+      const casualAnswer = await this.generateCasualConversationAnswer(
+        dto,
+        this.getCasualFallbackForLanguage(dto.language, normalized),
+      );
       const conversation = await this.prisma.conversation.create({
         data: {
           language: dto.language,
@@ -238,64 +235,14 @@ export class RagService {
               },
               {
                 role: "assistant",
-                content: greetingAnswer,
+                content: casualAnswer,
               },
             ],
           },
         },
       });
       return {
-        answer: greetingAnswer,
-        uncertainty: false,
-        sources: [],
-        guardrails: {
-          offTopicBlocked: false,
-          personalDataUsedForTraining: false,
-        },
-        conversationId: conversation.id,
-      };
-    }
-
-    if (this.isSmallTalk(normalized)) {
-      const smallTalkAnswer = this.getSmallTalkAnswerForLanguage(dto.language);
-      const conversation = await this.prisma.conversation.create({
-        data: {
-          language: dto.language,
-          messages: {
-            create: [
-              { role: "user", content: dto.question },
-              { role: "assistant", content: smallTalkAnswer },
-            ],
-          },
-        },
-      });
-      return {
-        answer: smallTalkAnswer,
-        uncertainty: false,
-        sources: [],
-        guardrails: {
-          offTopicBlocked: false,
-          personalDataUsedForTraining: false,
-        },
-        conversationId: conversation.id,
-      };
-    }
-
-    if (this.isThanks(normalized)) {
-      const thanksAnswer = this.getThanksAnswerForLanguage(dto.language);
-      const conversation = await this.prisma.conversation.create({
-        data: {
-          language: dto.language,
-          messages: {
-            create: [
-              { role: "user", content: dto.question },
-              { role: "assistant", content: thanksAnswer },
-            ],
-          },
-        },
-      });
-      return {
-        answer: thanksAnswer,
+        answer: casualAnswer,
         uncertainty: false,
         sources: [],
         guardrails: {
@@ -740,6 +687,61 @@ export class RagService {
     return greetings[language] ?? COVA_OPENING_GREETING;
   }
 
+  private getCasualFallbackForLanguage(language: AskQuestionDto["language"], normalizedQuestion: string): string {
+    if (this.isThanks(normalizedQuestion)) {
+      return this.getThanksAnswerForLanguage(language);
+    }
+    if (this.isGreeting(normalizedQuestion)) {
+      return this.getGreetingForLanguage(language);
+    }
+    return this.getSmallTalkAnswerForLanguage(language);
+  }
+
+  private async generateCasualConversationAnswer(dto: AskQuestionDto, fallback: string): Promise<string> {
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) return fallback;
+
+    try {
+      const languageName = this.resolveLanguageName(dto.language);
+      const response = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: process.env.RAG_OPENAI_MODEL ?? "gpt-4o-mini",
+          temperature: 0.45,
+          max_tokens: 120,
+          messages: [
+            {
+              role: "system",
+              content:
+                `Eres CoVA, asistente virtual del Principado de Asturias. ` +
+                `Responde en ${languageName} con tono cercano, natural, breve e institucional. ` +
+                "Esta es conversación casual, no una consulta documental: no digas que faltan fuentes. " +
+                "No inventes trámites, normativa, plazos, importes ni datos administrativos. " +
+                "Si el usuario pregunta por información oficial, invítale a concretar el trámite, ayuda o servicio para poder orientarle con fuentes.",
+            },
+            {
+              role: "user",
+              content: dto.question,
+            },
+          ],
+        }),
+      });
+
+      if (!response.ok) return fallback;
+      const json = (await response.json()) as {
+        choices?: Array<{ message?: { content?: string } }>;
+      };
+      const answer = json.choices?.[0]?.message?.content?.trim();
+      return answer || fallback;
+    } catch {
+      return fallback;
+    }
+  }
+
   private getSmallTalkAnswerForLanguage(language: AskQuestionDto["language"]): string {
     if (language === "EN") return COVA_SMALL_TALK_ANSWER_EN;
     const answers: Record<Exclude<AskQuestionDto["language"], "EN">, string> = {
@@ -895,6 +897,15 @@ export class RagService {
     return greetings.has(compact);
   }
 
+  private isCasualConversation(normalizedQuestion: string): boolean {
+    return (
+      this.isGreeting(normalizedQuestion) ||
+      this.isSmallTalk(normalizedQuestion) ||
+      this.isThanks(normalizedQuestion) ||
+      this.isFarewell(normalizedQuestion)
+    );
+  }
+
   private matchesConversationalPhrase(normalizedQuestion: string, phrases: string[]): boolean {
     const q = normalizedQuestion.trim();
     if (!q) return false;
@@ -929,6 +940,23 @@ export class RagService {
       "comment allez vous",
       "wie geht es",
       "wie gehts",
+    ];
+
+    return this.matchesConversationalPhrase(normalizedQuestion, phrases);
+  }
+
+  private isFarewell(normalizedQuestion: string): boolean {
+    const phrases = [
+      "adios",
+      "hasta luego",
+      "hasta pronto",
+      "nos vemos",
+      "chao",
+      "bye",
+      "goodbye",
+      "see you",
+      "au revoir",
+      "tschuss",
     ];
 
     return this.matchesConversationalPhrase(normalizedQuestion, phrases);
