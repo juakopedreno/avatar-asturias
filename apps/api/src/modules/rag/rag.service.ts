@@ -4,12 +4,43 @@ import { PrismaService } from "../../prisma/prisma.service";
 import { AlertsService } from "../alerts/alerts.service";
 import { ContentService } from "../content/content.service";
 import { SourcesService } from "../sources/sources.service";
-import { COVA_OPENING_GREETING, COVA_IDENTITY_ANSWER, COVA_IDENTITY_ANSWER_EN, COVA_SMALL_TALK_ANSWER, COVA_SMALL_TALK_ANSWER_EN, COVA_THANKS_ANSWER, COVA_THANKS_ANSWER_EN } from "../persona/asturias-cova.prompt";
+import { COVA_OPENING_GREETING, COVA_IDENTITY_ANSWER, COVA_IDENTITY_ANSWER_EN, COVA_SMALL_TALK_ANSWER, COVA_SMALL_TALK_ANSWER_EN, COVA_THANKS_ANSWER, COVA_THANKS_ANSWER_EN, COVA_FAREWELL_ANSWER, COVA_FAREWELL_ANSWER_EN } from "../persona/asturias-cova.prompt";
 import { AskQuestionDto } from "./dto/ask-question.dto";
 import { IngestApiDto } from "./dto/ingest-api.dto";
 import { IngestWebDto } from "./dto/ingest-web.dto";
 
 const CONTROLLED_RESPONSE_MIN_SCORE = 3;
+
+type CasualIntent = "greeting" | "wellbeing" | "thanks" | "farewell" | "open";
+
+const INSTITUTIONAL_TOPIC_KEYWORDS = [
+  "ayuda",
+  "ayudas",
+  "tramite",
+  "tramites",
+  "subvencion",
+  "subvenciones",
+  "beca",
+  "becas",
+  "servicio",
+  "servicios",
+  "solicitud",
+  "solicitar",
+  "documento",
+  "documentacion",
+  "dependencia",
+  "mayores",
+  "normativa",
+  "plazo",
+  "cita",
+  "registro",
+  "principado",
+  "asturias",
+  "empadron",
+  "certificado",
+  "impuesto",
+  "tasas",
+];
 
 @Injectable()
 export class RagService {
@@ -220,10 +251,14 @@ export class RagService {
   async ask(dto: AskQuestionDto) {
     const normalized = this.normalizeForSearch(dto.question);
     if (this.isCasualConversation(normalized)) {
-      const casualAnswer = await this.generateCasualConversationAnswer(
-        dto,
-        this.getCasualFallbackForLanguage(dto.language, normalized),
-      );
+      const intent = this.classifyCasualIntent(normalized);
+      const casualAnswer =
+        intent === "open"
+          ? await this.generateCasualConversationAnswer(
+              dto,
+              this.getCasualFallbackForLanguage(dto.language, normalized),
+            )
+          : this.getCasualAnswerForIntent(intent, dto.language);
       const conversation = await this.prisma.conversation.create({
         data: {
           language: dto.language,
@@ -687,12 +722,31 @@ export class RagService {
     return greetings[language] ?? COVA_OPENING_GREETING;
   }
 
-  private getCasualFallbackForLanguage(language: AskQuestionDto["language"], normalizedQuestion: string): string {
-    if (this.isThanks(normalizedQuestion)) {
-      return this.getThanksAnswerForLanguage(language);
+  private classifyCasualIntent(normalizedQuestion: string): CasualIntent {
+    if (this.isThanks(normalizedQuestion)) return "thanks";
+    if (this.isFarewell(normalizedQuestion)) return "farewell";
+    if (this.isGreeting(normalizedQuestion)) return "greeting";
+    if (this.isSmallTalk(normalizedQuestion)) return "wellbeing";
+    return "open";
+  }
+
+  private getCasualAnswerForIntent(intent: Exclude<CasualIntent, "open">, language: AskQuestionDto["language"]): string {
+    switch (intent) {
+      case "greeting":
+        return this.getGreetingForLanguage(language);
+      case "wellbeing":
+        return this.getSmallTalkAnswerForLanguage(language);
+      case "thanks":
+        return this.getThanksAnswerForLanguage(language);
+      case "farewell":
+        return this.getFarewellAnswerForLanguage(language);
     }
-    if (this.isGreeting(normalizedQuestion)) {
-      return this.getGreetingForLanguage(language);
+  }
+
+  private getCasualFallbackForLanguage(language: AskQuestionDto["language"], normalizedQuestion: string): string {
+    const intent = this.classifyCasualIntent(normalizedQuestion);
+    if (intent !== "open") {
+      return this.getCasualAnswerForIntent(intent, language);
     }
     return this.getSmallTalkAnswerForLanguage(language);
   }
@@ -720,8 +774,11 @@ export class RagService {
                 `Eres CoVA, asistente virtual del Principado de Asturias. ` +
                 `Responde en ${languageName} con tono cercano, natural, breve e institucional. ` +
                 "Esta es conversación casual, no una consulta documental: no digas que faltan fuentes. " +
+                "Responde DIRECTAMENTE a lo que el usuario acaba de decir o preguntar. " +
+                'Si pregunta "cómo estás" o similar, contesta primero a eso (por ejemplo, que estás bien). ' +
+                "No ignores su mensaje ni respondas solo con un saludo genérico distinto a lo preguntado. " +
                 "No inventes trámites, normativa, plazos, importes ni datos administrativos. " +
-                "Si el usuario pregunta por información oficial, invítale a concretar el trámite, ayuda o servicio para poder orientarle con fuentes.",
+                "Máximo 2 frases cortas. Cierra invitando a ayudar con ayudas, trámites o servicios del Principado si encaja.",
             },
             {
               role: "user",
@@ -740,6 +797,18 @@ export class RagService {
     } catch {
       return fallback;
     }
+  }
+
+  private getFarewellAnswerForLanguage(language: AskQuestionDto["language"]): string {
+    if (language === "EN") return COVA_FAREWELL_ANSWER_EN;
+    const answers: Record<Exclude<AskQuestionDto["language"], "EN">, string> = {
+      ES: COVA_FAREWELL_ANSWER,
+      DE:
+        "Auf Wiedersehen! Wenn Sie Hilfe zu Zuschüssen, Verfahren oder Dienstleistungen des Fürstentums Asturien brauchen, bin ich da.",
+      FR:
+        "Au revoir ! Si vous avez besoin d'aide sur les aides, démarches ou services de la Principauté des Asturies, je suis là.",
+    };
+    return answers[language] ?? COVA_FAREWELL_ANSWER;
   }
 
   private getSmallTalkAnswerForLanguage(language: AskQuestionDto["language"]): string {
@@ -902,8 +971,20 @@ export class RagService {
       this.isGreeting(normalizedQuestion) ||
       this.isSmallTalk(normalizedQuestion) ||
       this.isThanks(normalizedQuestion) ||
-      this.isFarewell(normalizedQuestion)
+      this.isFarewell(normalizedQuestion) ||
+      this.isOpenCasualConversation(normalizedQuestion)
     );
+  }
+
+  private isOpenCasualConversation(normalizedQuestion: string): boolean {
+    const q = normalizedQuestion.trim();
+    if (!q || q.length > 80) return false;
+    if (INSTITUTIONAL_TOPIC_KEYWORDS.some((keyword) => q.includes(keyword))) return false;
+    if (/\b(como|donde|cuando|cual)\b/.test(q) && /\b(solicit|pedir|tramit|empadron|certific|inscrib)/.test(q)) {
+      return false;
+    }
+    const words = q.split(/\s+/).filter(Boolean);
+    return words.length <= 10;
   }
 
   private matchesConversationalPhrase(normalizedQuestion: string, phrases: string[]): boolean {

@@ -17,6 +17,12 @@ export const COVA_THANKS_ANSWER =
 export const COVA_THANKS_ANSWER_EN =
   "You're welcome! If you need anything else about grants, procedures or services from the Principality of Asturias, I'm here to help.";
 
+export const COVA_FAREWELL_ANSWER =
+  "¡Hasta luego! Cuando quieras, aquí estaré para orientarte sobre ayudas, trámites y servicios del Principado de Asturias.";
+
+export const COVA_FAREWELL_ANSWER_EN =
+  "Goodbye! Whenever you need help with grants, procedures or services from the Principality of Asturias, I'll be here.";
+
 export const COVA_IDENTITY_ANSWER =
   "CoVA es un proyecto de inteligencia artificial del Gobierno del Principado de Asturias, impulsado por la Dirección General de Estrategia Digital. " +
   "Su finalidad es funcionar como una especie de asistente o servidor público basado en IA para apoyar a los usuarios de los Servicios Sociales, especialmente personas mayores y dependientes. " +
