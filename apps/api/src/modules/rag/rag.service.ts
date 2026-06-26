@@ -250,7 +250,7 @@ export class RagService {
 
   async ask(dto: AskQuestionDto) {
     const normalized = this.normalizeForSearch(dto.question);
-    if (this.isAssistantIdentityQuestion(normalized)) {
+    if (this.isAssistantIdentityQuestion(normalized) && !this.isDocumentQuestion(normalized)) {
       const identityAnswer = this.getIdentityAnswerForLanguage(dto.language);
       const conversation = await this.prisma.conversation.create({
         data: {
@@ -416,7 +416,7 @@ export class RagService {
     });
     const scored = candidates
       .map((chunk) => {
-        const chunkNormalized = this.normalizeForSearch(chunk.text);
+        const chunkNormalized = this.normalizeForSearch(`${chunk.sourceLabel} ${chunk.text}`);
         let score = 0;
         for (const token of tokens) {
           if (chunkNormalized.includes(token)) {
@@ -425,6 +425,9 @@ export class RagService {
         }
         if (chunkNormalized.includes(normalized)) {
           score += 4;
+        }
+        if (this.isDocumentQuestion(normalized) && this.isDocumentSource(chunk.sourceLabel)) {
+          score += 3;
         }
         return { chunk, score };
       })
@@ -914,6 +917,43 @@ export class RagService {
       q.includes("cuentame") ||
       q.includes("hablame");
     return mentionsCova && asksDefinition;
+  }
+
+  private isDocumentQuestion(normalizedQuestion: string): boolean {
+    const q = normalizedQuestion.trim();
+    if (!q) return false;
+
+    const documentTerms = [
+      "pliego",
+      "pcap",
+      "memoria",
+      "documento",
+      "doc",
+      "pdf",
+      "contrato",
+      "contratacion",
+      "licitacion",
+      "expediente",
+      "presupuesto",
+      "adjudicacion",
+      "clausula",
+      "clausulas",
+      "solvencia",
+      "criterios",
+      "prescripciones",
+    ];
+
+    return documentTerms.some((term) => q.includes(term));
+  }
+
+  private isDocumentSource(sourceLabel: string): boolean {
+    const label = this.normalizeForSearch(sourceLabel);
+    return (
+      label.includes("pliego") ||
+      label.includes("pcap") ||
+      label.includes("memoria") ||
+      label.includes("doc202605")
+    );
   }
 
   private resolveLanguageName(language: AskQuestionDto["language"]): string {
