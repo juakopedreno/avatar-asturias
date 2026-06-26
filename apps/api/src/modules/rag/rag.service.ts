@@ -250,6 +250,31 @@ export class RagService {
 
   async ask(dto: AskQuestionDto) {
     const normalized = this.normalizeForSearch(dto.question);
+    if (this.isAssistantIdentityQuestion(normalized)) {
+      const identityAnswer = this.getIdentityAnswerForLanguage(dto.language);
+      const conversation = await this.prisma.conversation.create({
+        data: {
+          language: dto.language,
+          messages: {
+            create: [
+              { role: "user", content: dto.question },
+              { role: "assistant", content: identityAnswer },
+            ],
+          },
+        },
+      });
+      return {
+        answer: identityAnswer,
+        uncertainty: false,
+        sources: [],
+        guardrails: {
+          offTopicBlocked: false,
+          personalDataUsedForTraining: false,
+        },
+        conversationId: conversation.id,
+      };
+    }
+
     if (this.isCasualConversation(normalized)) {
       const intent = this.classifyCasualIntent(normalized);
       const casualAnswer =
@@ -278,31 +303,6 @@ export class RagService {
       });
       return {
         answer: casualAnswer,
-        uncertainty: false,
-        sources: [],
-        guardrails: {
-          offTopicBlocked: false,
-          personalDataUsedForTraining: false,
-        },
-        conversationId: conversation.id,
-      };
-    }
-
-    if (this.isAssistantIdentityQuestion(normalized)) {
-      const identityAnswer = this.getIdentityAnswerForLanguage(dto.language);
-      const conversation = await this.prisma.conversation.create({
-        data: {
-          language: dto.language,
-          messages: {
-            create: [
-              { role: "user", content: dto.question },
-              { role: "assistant", content: identityAnswer },
-            ],
-          },
-        },
-      });
-      return {
-        answer: identityAnswer,
         uncertainty: false,
         sources: [],
         guardrails: {
@@ -777,6 +777,7 @@ export class RagService {
                 "Responde DIRECTAMENTE a lo que el usuario acaba de decir o preguntar. " +
                 'Si pregunta "cómo estás" o similar, contesta primero a eso (por ejemplo, que estás bien). ' +
                 "No ignores su mensaje ni respondas solo con un saludo genérico distinto a lo preguntado. " +
+                "Si el usuario pregunta qué es CoVA, quién es CoVA, qué significa CoVA o menciona CoVA como proyecto/plataforma, no improvises: responde que CoVA es el asistente virtual con IA del Gobierno del Principado de Asturias y pide concretar si quiere más detalle. " +
                 "No inventes trámites, normativa, plazos, importes ni datos administrativos. " +
                 "Máximo 2 frases cortas. Cierra invitando a ayudar con ayudas, trámites o servicios del Principado si encaja.",
             },
@@ -844,18 +845,49 @@ export class RagService {
     const q = normalizedQuestion.trim();
     if (!q) return false;
 
+    const covaAliases = [
+      "cova",
+      "co va",
+      "coba",
+      "co ba",
+      "copa",
+      "co pa",
+      "covia",
+      "cova asturias",
+    ];
+    const mentionsCova = covaAliases.some((alias) => q.includes(alias));
+
     const identityPhrases = [
       "que es cova",
+      "que es coba",
+      "que es copa",
+      "que significa cova",
+      "que significa coba",
+      "que significa copa",
       "quien es cova",
+      "quien es coba",
+      "quien es copa",
       "que eres",
       "quien eres",
       "que eres tu",
       "quien eres tu",
       "que es co va",
+      "que es co ba",
+      "que es co pa",
       "presentate",
       "presentacion",
       "cuentame sobre cova",
+      "cuentame de cova",
+      "cuentame sobre coba",
+      "cuentame sobre copa",
       "hablame de cova",
+      "hablame sobre cova",
+      "hablame de coba",
+      "hablame de copa",
+      "explicame cova",
+      "explicame que es cova",
+      "proyecto cova",
+      "plataforma cova",
       "que puedes hacer",
       "para que sirves",
       "que haces",
@@ -872,9 +904,15 @@ export class RagService {
       return true;
     }
 
-    const mentionsCova = q.includes("cova") || q.includes("co va");
     const asksDefinition =
-      q.includes("que es") || q.includes("quien es") || q.includes("que eres") || q.includes("quien eres");
+      q.includes("que es") ||
+      q.includes("quien es") ||
+      q.includes("que eres") ||
+      q.includes("quien eres") ||
+      q.includes("que significa") ||
+      q.includes("explicame") ||
+      q.includes("cuentame") ||
+      q.includes("hablame");
     return mentionsCova && asksDefinition;
   }
 
