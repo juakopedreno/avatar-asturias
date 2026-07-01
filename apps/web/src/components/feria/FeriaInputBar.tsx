@@ -1,22 +1,27 @@
-import { FormEvent } from "react";
+import { FormEvent, useRef } from "react";
 import { Mic, MicOff, Send } from "lucide-react";
 import { useFeriaAsk } from "@/hooks/use-feria-ask";
 
 type FeriaInputBarProps = {
   variant?: "light" | "dark";
+  minimal?: boolean;
   onAnswer?: (answer: string) => void;
   onInterrupt?: () => void;
+  onActivateAudio?: () => void;
   avatarSpeaking?: boolean;
   className?: string;
 };
 
 export default function FeriaInputBar({
   variant = "light",
+  minimal = false,
   onAnswer,
   onInterrupt,
+  onActivateAudio,
   avatarSpeaking = false,
   className = "",
 }: FeriaInputBarProps) {
+  const audioActivatedRef = useRef(false);
   const {
     inputText,
     setInputText,
@@ -27,8 +32,15 @@ export default function FeriaInputBar({
     toggleVoiceRecording,
   } = useFeriaAsk({ onAnswer, onInterrupt });
 
+  const activateAudioOnce = () => {
+    if (audioActivatedRef.current) return;
+    audioActivatedRef.current = true;
+    onActivateAudio?.();
+  };
+
   const onSubmit = (event: FormEvent) => {
     event.preventDefault();
+    activateAudioOnce();
     void askQuestion(inputText);
   };
 
@@ -48,13 +60,9 @@ export default function FeriaInputBar({
           <input
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
-            placeholder={
-              recording
-                ? "Habla ahora… pulsa el micrófono para enviar"
-                : "Escribe tu pregunta o usa el micrófono…"
-            }
+            onFocus={activateAudioOnce}
+            placeholder={recording ? "Habla ahora…" : "Escribe o usa el micrófono"}
             disabled={sending && !avatarSpeaking}
-            onClick={(e) => e.stopPropagation()}
             className={`w-full py-4 pl-5 pr-28 text-base focus:outline-none disabled:opacity-60 ${
               isDark
                 ? "text-white placeholder:text-white/40 bg-transparent"
@@ -64,8 +72,8 @@ export default function FeriaInputBar({
           <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
             <button
               type="button"
-              onClick={(e) => {
-                e.stopPropagation();
+              onClick={() => {
+                activateAudioOnce();
                 void toggleVoiceRecording();
               }}
               disabled={sending && !recording && !avatarSpeaking}
@@ -83,7 +91,6 @@ export default function FeriaInputBar({
             <button
               type="submit"
               disabled={!inputText.trim()}
-              onClick={(e) => e.stopPropagation()}
               className={`p-3 rounded-xl transition-colors disabled:opacity-50 ${
                 isDark
                   ? "bg-[#0055A4] text-white hover:bg-[#004990]"
@@ -96,12 +103,12 @@ export default function FeriaInputBar({
           </div>
         </div>
       </form>
-      {recording ? (
+      {!minimal && recording ? (
         <p className={`text-center text-sm mt-2 ${isDark ? "text-red-300" : "text-red-600"}`}>
           Escuchando… pulsa el micrófono de nuevo para enviar (puedes interrumpir a CoVA)
         </p>
       ) : null}
-      {sending ? (
+      {!minimal && sending ? (
         <p
           className={`text-center text-sm mt-2 animate-pulse ${
             isDark ? "text-white/70" : "text-[#0055A4]"
@@ -110,9 +117,14 @@ export default function FeriaInputBar({
           CoVA está preparando la respuesta…
         </p>
       ) : null}
-      {!sending && !recording && avatarSpeaking ? (
+      {!minimal && !sending && !recording && avatarSpeaking ? (
         <p className={`text-center text-xs mt-2 ${isDark ? "text-white/50" : "text-[#003d78]/60"}`}>
           CoVA está hablando — pulsa el micrófono o envía texto para interrumpir
+        </p>
+      ) : null}
+      {minimal && sending ? (
+        <p className={`text-center text-xs mt-2 ${isDark ? "text-white/60" : "text-[#0055A4]/80"}`}>
+          Preparando respuesta…
         </p>
       ) : null}
       {error ? (

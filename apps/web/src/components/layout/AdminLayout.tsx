@@ -21,9 +21,9 @@ export default function AdminLayout() {
   return (
     <div className="min-h-screen bg-background flex" style={{ backgroundImage: 'var(--gradient-surface)' }}>
       <AdminSidebar />
-      <div className="flex-1 ml-[260px] flex flex-col min-h-screen transition-all duration-200">
+      <div className="flex-1 ml-[260px] flex flex-col min-h-screen min-w-0 transition-all duration-200">
         <TopBar />
-        <main className="flex-1 p-6 overflow-auto">
+        <main className="flex-1 p-6 overflow-auto min-w-0">
           <Outlet />
         </main>
         <div className="px-6 pb-6">

@@ -1,4 +1,3 @@
-import { Volume2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnamEvent, createClient } from "@anam-ai/js-sdk";
 import { apiPost } from "@/lib/api";
@@ -54,15 +53,12 @@ export default function FeriaDisplay() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const clientRef = useRef<AnamClientHandle | null>(null);
   const openingSessionRef = useRef(false);
-  const greetingDeliveredRef = useRef(false);
   const speakGenerationRef = useRef(0);
   const unmountedRef = useRef(false);
   const [avatarConnected, setAvatarConnected] = useState(false);
-  const [streamReady, setStreamReady] = useState(false);
   const [audioEnabled, setAudioEnabled] = useState(false);
   const [avatarSpeaking, setAvatarSpeaking] = useState(false);
   const [subtitle, setSubtitle] = useState<string | null>(null);
-  const [showWelcome, setShowWelcome] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const showInput = useMemo(() => {
@@ -96,7 +92,6 @@ export default function FeriaDisplay() {
       videoRef.current.srcObject = null;
     }
     setAvatarConnected(false);
-    setStreamReady(false);
   };
 
   const ensureVideoPlaying = async (unmute = false) => {
@@ -137,7 +132,6 @@ export default function FeriaDisplay() {
       }
 
       setSubtitle(content);
-      setShowWelcome(false);
       setAvatarSpeaking(true);
 
       try {
@@ -156,27 +150,12 @@ export default function FeriaDisplay() {
     [avatarConnected, interruptAvatar],
   );
 
-  const deliverOpeningGreeting = useCallback(async () => {
-    if (greetingDeliveredRef.current || !avatarConnected || !openingGreeting.trim()) return;
-    const ok = await speakWithAvatar(openingGreeting, { preferAudio: audioEnabled });
-    if (ok) greetingDeliveredRef.current = true;
-  }, [avatarConnected, audioEnabled, openingGreeting, speakWithAvatar]);
-
-  const enableAudio = useCallback(async () => {
-    const ok = await ensureVideoPlaying(true);
-    if (ok && avatarConnected && openingGreeting.trim()) {
-      greetingDeliveredRef.current = false;
-      const delivered = await speakWithAvatar(openingGreeting, { preferAudio: true });
-      if (delivered) greetingDeliveredRef.current = true;
-    }
-    return ok;
-  }, [avatarConnected, openingGreeting, speakWithAvatar]);
+  const activateAudio = useCallback(async () => ensureVideoPlaying(true), []);
 
   const silenceSystemNotice = useCallback((content: string) => {
     if (!isSystemNotice(content)) return;
     clientRef.current?.interruptPersona?.();
     setAvatarSpeaking(false);
-    setSubtitle(null);
   }, []);
 
   const connectAnam = async (sessionToken: string) => {
@@ -186,7 +165,6 @@ export default function FeriaDisplay() {
     client.addListener?.(AnamEvent.VIDEO_PLAY_STARTED, () => setAvatarConnected(true));
     client.addListener?.(AnamEvent.CONNECTION_CLOSED, () => {
       setAvatarConnected(false);
-      setStreamReady(false);
       if (!unmountedRef.current) {
         window.setTimeout(() => void openAvatarSession(), 1200);
       }
@@ -210,7 +188,6 @@ export default function FeriaDisplay() {
       videoRef.current.muted = true;
       await ensureVideoPlaying(false);
       await waitForVideoFrame(videoRef.current);
-      setStreamReady(true);
     }
     setAvatarConnected(true);
   };
@@ -219,7 +196,6 @@ export default function FeriaDisplay() {
     if (openingSessionRef.current) return;
     openingSessionRef.current = true;
     try {
-      greetingDeliveredRef.current = false;
       await disconnectAnam();
       const response = await apiPost<AvatarSessionResponse>("/avatar/session", {
         language: "ES",
@@ -246,9 +222,10 @@ export default function FeriaDisplay() {
   }, []);
 
   useEffect(() => {
-    if (!avatarConnected || !streamReady) return;
-    void deliverOpeningGreeting();
-  }, [avatarConnected, streamReady, openingGreeting, deliverOpeningGreeting]);
+    if (openingGreeting.trim()) {
+      setSubtitle((current) => current ?? openingGreeting);
+    }
+  }, [openingGreeting]);
 
   useEffect(() => {
     const channel = createFeriaChannel();
@@ -259,7 +236,7 @@ export default function FeriaDisplay() {
       if (msg.type === "interrupt") {
         interruptAvatar();
       } else if (msg.type === "speak") {
-        void speakWithAvatar(msg.text);
+        void speakWithAvatar(msg.text, { preferAudio: true });
       }
     };
 
@@ -293,8 +270,6 @@ export default function FeriaDisplay() {
         backgroundColor: FERIA_DISPLAY_BG,
         backgroundImage: `radial-gradient(ellipse 90% 70% at 50% 38%, ${FERIA_DISPLAY_BG_SOFT} 0%, ${FERIA_DISPLAY_BG} 85%)`,
       }}
-      onClick={() => void enableAudio()}
-      role="presentation"
     >
       <div className="absolute top-8 left-8 flex items-center gap-3 z-20 opacity-90">
         <AsturiasMark className="h-10 w-10" />
@@ -303,21 +278,6 @@ export default function FeriaDisplay() {
           <p className="text-xs text-white/75">CoVA · Asistente virtual con IA</p>
         </div>
       </div>
-
-      {showWelcome && !subtitle ? (
-        <div className="absolute top-[14%] left-1/2 -translate-x-1/2 z-20 max-w-md px-6">
-          <div
-            className="rounded-2xl px-5 py-4 text-center text-sm leading-relaxed text-white/95"
-            style={{
-              background: "rgba(8, 16, 27, 0.72)",
-              border: "1px solid rgba(100, 160, 255, 0.35)",
-              boxShadow: "0 8px 32px rgba(0, 0, 0, 0.35)",
-            }}
-          >
-            {openingGreeting}
-          </div>
-        </div>
-      ) : null}
 
       <div
         className="absolute inset-0 flex items-end justify-center"
@@ -359,9 +319,11 @@ export default function FeriaDisplay() {
         >
           <FeriaInputBar
             variant="dark"
+            minimal
             avatarSpeaking={avatarSpeaking}
+            onActivateAudio={() => void activateAudio()}
             onInterrupt={interruptAvatar}
-            onAnswer={(answer) => void speakWithAvatar(answer)}
+            onAnswer={(answer) => void speakWithAvatar(answer, { preferAudio: true })}
           />
         </div>
       ) : null}
@@ -372,26 +334,6 @@ export default function FeriaDisplay() {
         </p>
       ) : null}
 
-      {avatarConnected && !audioEnabled ? (
-        <button
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation();
-            void enableAudio();
-          }}
-          className={`absolute left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 rounded-full px-5 py-3 text-sm font-medium text-white transition-colors hover:bg-white/15 animate-pulse ${
-            showInput ? "bottom-36" : "bottom-8"
-          }`}
-          style={{
-            background: "rgba(8, 16, 27, 0.85)",
-            border: "1px solid rgba(100, 160, 255, 0.45)",
-            boxShadow: "0 8px 32px rgba(0, 0, 0, 0.4)",
-          }}
-        >
-          <Volume2 className="h-5 w-5" />
-          Toca para escuchar a CoVA
-        </button>
-      ) : null}
     </div>
   );
 }

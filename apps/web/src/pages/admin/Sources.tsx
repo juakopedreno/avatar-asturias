@@ -32,6 +32,27 @@ const typeLabels: Record<string, string> = {
   manual: 'Manual',
 };
 
+function formatJobInputRef(inputRef: string): string {
+  const trimmed = inputRef.trim();
+  if (!trimmed) return '—';
+
+  try {
+    const url = new URL(trimmed);
+    const pathParts = decodeURIComponent(url.pathname).split('/').filter(Boolean);
+    const filename = pathParts[pathParts.length - 1];
+    if (filename) return filename;
+    return url.hostname;
+  } catch {
+    // No es URL: nombre de archivo u otro identificador
+  }
+
+  const segments = trimmed.split(/[/\\]/).filter(Boolean);
+  const basename = segments[segments.length - 1];
+  if (basename && basename.length <= 80) return basename;
+  if (basename) return `${basename.slice(0, 77)}…`;
+  return trimmed.length > 80 ? `${trimmed.slice(0, 77)}…` : trimmed;
+}
+
 export default function Sources() {
   const { data, refetch: refetchSources } = useSourcesData();
   const { data: jobs, refetch: refetchJobs } = useIngestionJobsData();
@@ -243,7 +264,7 @@ export default function Sources() {
       : '—';
 
   return (
-    <div>
+    <div className="min-w-0 max-w-full overflow-x-hidden">
       <PageHeader
         title="Fuentes y Trazabilidad"
         description="Gestiona las fuentes de conocimiento y verifica la trazabilidad de las respuestas."
@@ -351,35 +372,42 @@ export default function Sources() {
         {sourceError ? <p className="text-xs text-destructive mt-3">{sourceError}</p> : null}
       </div>
 
-      <div className="bg-card rounded-xl p-5 card-elevated mb-6">
+      <div className="bg-card rounded-xl p-5 card-elevated mb-6 min-w-0 overflow-hidden">
         <h3 className="text-sm font-semibold mb-3">Jobs de ingesta</h3>
-        <div className="space-y-2">
-          {(jobs as Array<Record<string, unknown>> | undefined)?.map((job) => (
+        <div className="space-y-2 min-w-0">
+          {(jobs as Array<Record<string, unknown>> | undefined)?.map((job) => {
+            const inputRef = String(job.inputRef ?? '');
+            const label = formatJobInputRef(inputRef);
+            return (
             <div
               key={String(job.id)}
-              className="flex items-center justify-between gap-3 text-xs border border-border rounded-lg px-3 py-2"
+              className="flex items-center gap-3 text-xs border border-border rounded-lg px-3 py-2 min-w-0 overflow-hidden"
             >
-              <div className="flex items-center gap-2 min-w-0 flex-1">
+              <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
                 <span className="font-medium shrink-0">{String(job.sourceKind)}</span>
-                <span className="text-muted-foreground truncate" title={String(job.inputRef)}>
-                  {String(job.inputRef)}
+                <span
+                  className="text-muted-foreground truncate min-w-0 flex-1"
+                  title={inputRef}
+                >
+                  {label}
                 </span>
               </div>
               <div className="flex items-center gap-2 shrink-0">
-                <span className="text-muted-foreground">{String(job.outputChunks ?? 0)} chunks</span>
+                <span className="text-muted-foreground whitespace-nowrap">{String(job.outputChunks ?? 0)} chunks</span>
                 <StatusBadge status={String(job.status) as 'synced' | 'pending' | 'error'} />
                 <button
                   type="button"
                   title="Eliminar job de ingesta"
                   disabled={submitting}
-                  onClick={() => void removeIngestionJob(String(job.id), String(job.inputRef))}
+                  onClick={() => void removeIngestionJob(String(job.id), inputRef)}
                   className="p-1.5 rounded-md border border-border text-muted-foreground hover:text-destructive hover:border-destructive/40 hover:bg-destructive/5 transition-colors disabled:opacity-50"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
               </div>
             </div>
-          )) ?? <p className="text-xs text-muted-foreground">Sin jobs registrados</p>}
+            );
+          }) ?? <p className="text-xs text-muted-foreground">Sin jobs registrados</p>}
         </div>
       </div>
 
