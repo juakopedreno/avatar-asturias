@@ -7,6 +7,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import Landing from "./pages/Landing";
 import AvatarDemo from "./pages/AvatarDemo";
 import FeriaDisplay from "./pages/FeriaDisplay";
+import FeriaLive from "./pages/FeriaLive";
 import FeriaKiosk from "./pages/FeriaKiosk";
 import AdminLayout from "./components/layout/AdminLayout";
 import Dashboard from "./pages/admin/Dashboard";
@@ -54,6 +55,7 @@ const App = () => {
             <Route path="/" element={<Landing />} />
             <Route path="/demo" element={<AvatarDemo />} />
             <Route path="/feria/display" element={<FeriaDisplay />} />
+            <Route path="/feria/live" element={<FeriaLive />} />
             <Route path="/feria/kiosk" element={<FeriaKiosk />} />
             <Route path="/admin/login" element={<AdminLoginPage />} />
             <Route path="/admin" element={<AdminLayout />}>
