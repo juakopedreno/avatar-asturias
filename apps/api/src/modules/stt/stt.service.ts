@@ -22,7 +22,8 @@ export class SttService {
     });
     formData.append("file", blob, file.originalname || "audio.webm");
     formData.append("model", process.env.STT_OPENAI_MODEL || "whisper-1");
-    formData.append("response_format", "verbose_json");
+    formData.append("language", process.env.STT_LANGUAGE || "es");
+    formData.append("response_format", "json");
 
     const response = await fetch("https://api.openai.com/v1/audio/transcriptions", {
       method: "POST",

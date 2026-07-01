@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { apiPost, apiPostForm } from "@/lib/api";
+import { createBrowserSpeechRecognition, isBrowserSpeechAvailable } from "@/lib/browser-speech";
 import { postFeriaMessage } from "@/lib/feria-channel";
 
 type SupportedLanguage = "ES" | "EN" | "FR" | "DE";
@@ -26,6 +27,7 @@ export function useFeriaAsk(options: UseFeriaAskOptions = {}) {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordingStreamRef = useRef<MediaStream | null>(null);
   const audioChunksRef = useRef<BlobPart[]>([]);
+  const browserRecognitionRef = useRef<ReturnType<typeof createBrowserSpeechRecognition>>(null);
   const askGenerationRef = useRef(0);
 
   const stopRecordingTracks = () => {
@@ -61,6 +63,7 @@ export function useFeriaAsk(options: UseFeriaAskOptions = {}) {
       const rag = await apiPost<{ answer: string }>("/rag/ask", {
         question: trimmed,
         language: "ES",
+        brief: true,
       });
       if (generation !== askGenerationRef.current) return;
       deliverAnswer(rag.answer);
@@ -79,7 +82,7 @@ export function useFeriaAsk(options: UseFeriaAskOptions = {}) {
     }
   };
 
-  const startVoiceRecording = async () => {
+  const startWhisperRecording = async () => {
     if (recording) return;
     onInterrupt?.();
     if (!onAnswer) {
@@ -103,7 +106,7 @@ export function useFeriaAsk(options: UseFeriaAskOptions = {}) {
     }
   };
 
-  const stopVoiceRecording = async () => {
+  const stopWhisperRecording = async () => {
     const recorder = mediaRecorderRef.current;
     if (!recorder) return;
     setRecording(false);
@@ -132,12 +135,70 @@ export function useFeriaAsk(options: UseFeriaAskOptions = {}) {
     }
   };
 
-  const toggleVoiceRecording = () => {
-    if (recording) {
-      void stopVoiceRecording();
+  const startBrowserVoiceRecording = () => {
+    if (recording) return;
+    onInterrupt?.();
+    if (!onAnswer) {
+      postFeriaMessage({ type: "interrupt" });
+    }
+
+    const recognition = createBrowserSpeechRecognition();
+    if (!recognition) {
+      void startWhisperRecording();
       return;
     }
-    void startVoiceRecording();
+
+    browserRecognitionRef.current = recognition;
+    recognition.onresult = (event) => {
+      const text = event.results[0]?.[0]?.transcript?.trim();
+      if (text) {
+        setInputText(text);
+        void askQuestion(text);
+      }
+    };
+    recognition.onerror = (event) => {
+      if (event.error === "no-speech") {
+        setError("No se detectó voz. Inténtalo de nuevo.");
+      } else if (event.error !== "aborted") {
+        setError("No se pudo usar el micrófono del navegador.");
+      }
+      setRecording(false);
+      browserRecognitionRef.current = null;
+    };
+    recognition.onend = () => {
+      setRecording(false);
+      browserRecognitionRef.current = null;
+    };
+
+    try {
+      recognition.start();
+      setRecording(true);
+      setError(null);
+    } catch {
+      browserRecognitionRef.current = null;
+      void startWhisperRecording();
+    }
+  };
+
+  const stopBrowserVoiceRecording = () => {
+    browserRecognitionRef.current?.stop();
+    browserRecognitionRef.current = null;
+  };
+
+  const toggleVoiceRecording = () => {
+    if (recording) {
+      if (browserRecognitionRef.current) {
+        stopBrowserVoiceRecording();
+      } else {
+        void stopWhisperRecording();
+      }
+      return;
+    }
+    if (isBrowserSpeechAvailable()) {
+      startBrowserVoiceRecording();
+      return;
+    }
+    void startWhisperRecording();
   };
 
   return {

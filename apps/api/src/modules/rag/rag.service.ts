@@ -411,8 +411,15 @@ export class RagService {
     }
 
     const candidates = await this.prisma.knowledgeChunk.findMany({
+      select: {
+        id: true,
+        sourceId: true,
+        sourceLabel: true,
+        text: true,
+        updatedAt: true,
+      },
       orderBy: { updatedAt: "desc" },
-      take: 800,
+      take: Number.parseInt(process.env.RAG_MAX_CHUNKS ?? "400", 10) || 400,
     });
     const scored = candidates
       .map((chunk) => {
@@ -469,9 +476,11 @@ export class RagService {
     }
 
     const selectedForCitations = matched.slice(0, 3);
-    const generated = await this.generateContextualAnswer(dto, matched);
+    const [generated, topicAlerts] = await Promise.all([
+      this.generateContextualAnswer(dto, matched),
+      this.getAlertsMatchingQuestion(normalized),
+    ]);
     let finalAnswer = generated.answer;
-    const topicAlerts = await this.getAlertsMatchingQuestion(normalized);
     if (topicAlerts.length > 0) {
       const prefix = topicAlerts.map((a) => `[Aviso] ${a.title}: ${a.message}`).join(" ");
       finalAnswer = `${prefix} ${finalAnswer}`.trim();
@@ -481,32 +490,12 @@ export class RagService {
         language: dto.language,
       },
     });
-    await this.prisma.message.create({
-      data: {
-        conversationId: conversation.id,
-        role: "user",
-        content: dto.question,
-      },
-    });
-    const assistantMessage = await this.prisma.message.create({
-      data: {
-        conversationId: conversation.id,
-        role: "assistant",
-        content: finalAnswer,
-      },
-    });
-    await Promise.all(
-      selectedForCitations.map((chunk) =>
-        this.prisma.citation.create({
-          data: {
-            messageId: assistantMessage.id,
-            sourceId: chunk.sourceId,
-            sourceLabel: chunk.sourceLabel,
-            updatedAt: chunk.updatedAt,
-          },
-        }),
-      ),
-    );
+    void this.persistAskTurn({
+      conversationId: conversation.id,
+      question: dto.question,
+      answer: finalAnswer,
+      citations: selectedForCitations,
+    }).catch(() => {});
     return {
       answer: finalAnswer,
       uncertainty: generated.uncertainty,
@@ -522,6 +511,40 @@ export class RagService {
       },
       conversationId: conversation.id,
     };
+  }
+
+  private async persistAskTurn(input: {
+    conversationId: string;
+    question: string;
+    answer: string;
+    citations: Array<{ sourceId: string; sourceLabel: string; updatedAt: Date }>;
+  }) {
+    await this.prisma.message.create({
+      data: {
+        conversationId: input.conversationId,
+        role: "user",
+        content: input.question,
+      },
+    });
+    const assistantMessage = await this.prisma.message.create({
+      data: {
+        conversationId: input.conversationId,
+        role: "assistant",
+        content: input.answer,
+      },
+    });
+    await Promise.all(
+      input.citations.map((chunk) =>
+        this.prisma.citation.create({
+          data: {
+            messageId: assistantMessage.id,
+            sourceId: chunk.sourceId,
+            sourceLabel: chunk.sourceLabel,
+            updatedAt: chunk.updatedAt,
+          },
+        }),
+      ),
+    );
   }
 
   private async getAlertsMatchingQuestion(
@@ -572,7 +595,7 @@ export class RagService {
   ): Promise<{ answer: string; uncertainty: boolean; offTopicBlocked: boolean }> {
     const context = matched
       .map((chunk, index) => {
-        const snippet = chunk.text.slice(0, 700).replace(/\s+/g, " ").trim();
+        const snippet = chunk.text.slice(0, dto.brief ? 420 : 700).replace(/\s+/g, " ").trim();
         return `[${index + 1}] ${chunk.sourceLabel}\n${snippet}`;
       })
       .join("\n\n");
@@ -602,6 +625,9 @@ export class RagService {
         dto.wearablesSummary?.trim() && !attachWearables
           ? " No incluyas cifras ni análisis detallados de pulsera o biometría: el usuario no ha pedido datos del dispositivo en esta conversación. Responde de forma breve y natural."
           : "";
+      const briefHint = dto.brief
+        ? " Responde en 2-3 frases cortas, directas y fáciles de escuchar en voz alta."
+        : "";
       const response = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -611,7 +637,7 @@ export class RagService {
         body: JSON.stringify({
           model: process.env.RAG_OPENAI_MODEL ?? "gpt-4o-mini",
           temperature: 0.2,
-          max_tokens: 350,
+          max_tokens: dto.brief ? 180 : 350,
           messages: [
             {
               role: "system",
@@ -622,7 +648,8 @@ export class RagService {
                 "Si el contexto no alcanza, dilo con naturalidad y sugiere consultar la web o los canales oficiales del Principado. " +
                 "No des asesoramiento legal vinculante ni sustituyas la atención presencial cuando el trámite lo requiera." +
                 wearableSystemHint +
-                noWearablesDetailHint,
+                noWearablesDetailHint +
+                briefHint,
             },
             {
               role: "user",

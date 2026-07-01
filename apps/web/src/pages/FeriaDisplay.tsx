@@ -122,32 +122,33 @@ export default function FeriaDisplay() {
     async (content: string, options?: { preferAudio?: boolean }) => {
       if (!clientRef.current || !avatarConnected || !content.trim()) return false;
 
-      interruptAvatar();
       const generation = ++speakGenerationRef.current;
 
       if (options?.preferAudio) {
-        await ensureVideoPlaying(true);
-      } else {
-        await ensureVideoPlaying(false);
+        void ensureVideoPlaying(true);
       }
 
       setSubtitle(content);
       setAvatarSpeaking(true);
+      clientRef.current.interruptPersona?.();
 
       try {
         if (typeof clientRef.current.talk === "function") {
-          await clientRef.current.talk(content);
+          void clientRef.current.talk(content).finally(() => {
+            if (generation === speakGenerationRef.current) {
+              setAvatarSpeaking(false);
+            }
+          });
         }
         return true;
       } catch {
-        return false;
-      } finally {
         if (generation === speakGenerationRef.current) {
           setAvatarSpeaking(false);
         }
+        return false;
       }
     },
-    [avatarConnected, interruptAvatar],
+    [avatarConnected],
   );
 
   const activateAudio = useCallback(async () => ensureVideoPlaying(true), []);

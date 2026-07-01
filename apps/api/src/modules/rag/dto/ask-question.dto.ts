@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-import { IsIn, IsOptional, IsString, MaxLength } from "class-validator";
+import { IsBoolean, IsIn, IsOptional, IsString, MaxLength } from "class-validator";
 
 const languageCodes = ["ES", "EN", "FR", "DE"] as const;
 
@@ -20,4 +20,11 @@ export class AskQuestionDto {
   @IsString()
   @MaxLength(6000)
   wearablesSummary?: string;
+
+  @ApiPropertyOptional({
+    description: "Respuesta breve optimizada para voz (feria/kiosk).",
+  })
+  @IsOptional()
+  @IsBoolean()
+  brief?: boolean;
 }
