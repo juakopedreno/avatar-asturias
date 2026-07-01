@@ -1,4 +1,15 @@
-type BrowserSpeechRecognition = {
+type BrowserSpeechRecognitionResult = {
+  isFinal: boolean;
+  0: { transcript: string };
+  length: number;
+};
+
+type BrowserSpeechRecognitionEvent = {
+  resultIndex: number;
+  results: Array<BrowserSpeechRecognitionResult> & { length: number };
+};
+
+export type BrowserSpeechRecognition = {
   lang: string;
   interimResults: boolean;
   maxAlternatives: number;
@@ -6,9 +17,12 @@ type BrowserSpeechRecognition = {
   start: () => void;
   stop: () => void;
   abort: () => void;
-  onresult: ((event: { results: Array<Array<{ transcript: string }>> }) => void) | null;
+  onresult: ((event: BrowserSpeechRecognitionEvent) => void) | null;
   onerror: ((event: { error: string }) => void) | null;
   onend: (() => void) | null;
+  onspeechstart: (() => void) | null;
+  onsoundstart: (() => void) | null;
+  onaudiostart: (() => void) | null;
 };
 
 type BrowserSpeechWindow = Window & {

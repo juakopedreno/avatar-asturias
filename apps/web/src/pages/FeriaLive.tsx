@@ -60,6 +60,7 @@ export default function FeriaLive() {
   const openingSessionRef = useRef(false);
   const speakGenerationRef = useRef(0);
   const askGenerationRef = useRef(0);
+  const statusRef = useRef<LiveStatus>("idle");
   const unmountedRef = useRef(false);
   const processedUserMessageIdsRef = useRef<Set<string>>(new Set());
 
@@ -70,6 +71,30 @@ export default function FeriaLive() {
   const [subtitle, setSubtitle] = useState<string | null>(null);
   const [userLine, setUserLine] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    statusRef.current = status;
+  }, [status]);
+
+  const hardStopAvatarAudio = useCallback(() => {
+    speakGenerationRef.current += 1;
+    clientRef.current?.interruptPersona?.();
+    const video = videoRef.current;
+    if (video) {
+      video.volume = 0;
+      window.setTimeout(() => {
+        if (videoRef.current && audioEnabled) {
+          videoRef.current.volume = 1;
+        }
+      }, 120);
+    }
+  }, [audioEnabled]);
+
+  const interruptAvatar = useCallback(() => {
+    askGenerationRef.current += 1;
+    hardStopAvatarAudio();
+    setStatus("listening");
+  }, [hardStopAvatarAudio]);
 
   const waitForVideoElement = async () => {
     for (let attempt = 0; attempt < 40; attempt += 1) {
@@ -118,12 +143,6 @@ export default function FeriaLive() {
     return false;
   };
 
-  const interruptAvatar = useCallback(() => {
-    askGenerationRef.current += 1;
-    clientRef.current?.interruptPersona?.();
-    setStatus((current) => (current === "speaking" ? "listening" : current));
-  }, []);
-
   const speakWithAvatar = useCallback(
     async (content: string) => {
       if (!clientRef.current || !avatarConnected || !content.trim()) return false;
@@ -132,7 +151,9 @@ export default function FeriaLive() {
       void ensureVideoPlaying(true);
       setSubtitle(content);
       setStatus("speaking");
-      clientRef.current.interruptPersona?.();
+      if (videoRef.current && audioEnabled) {
+        videoRef.current.volume = 1;
+      }
 
       try {
         if (typeof clientRef.current.talk === "function") {
@@ -150,7 +171,7 @@ export default function FeriaLive() {
         return false;
       }
     },
-    [avatarConnected, conversationActive],
+    [avatarConnected, audioEnabled, conversationActive],
   );
 
   const handleUserUtterance = useCallback(
@@ -192,7 +213,7 @@ export default function FeriaLive() {
     const client = createClient(
       sessionToken,
       useAnamMic
-        ? { voiceDetection: { endOfSpeechSensitivity: 0.55 } }
+        ? { voiceDetection: { endOfSpeechSensitivity: 0.72 } }
         : { disableInputAudio: true },
     ) as AnamClientHandle;
     clientRef.current = client;
@@ -205,6 +226,7 @@ export default function FeriaLive() {
       }
     });
     client.addListener?.(AnamEvent.TALK_STREAM_INTERRUPTED, () => {
+      hardStopAvatarAudio();
       if (conversationActive) setStatus("listening");
     });
     client.addListener?.(AnamEvent.MESSAGE_STREAM_EVENT_RECEIVED, (event) => {
@@ -222,10 +244,11 @@ export default function FeriaLive() {
 
       if (!useAnamMic || payload?.role !== MessageRole.USER) return;
 
-      if (payload.content?.trim() && !payload.endOfSpeech) {
-        interruptAvatar();
+      if (payload.content?.trim()) {
+        hardStopAvatarAudio();
         setUserLine(payload.content.trim());
-        return;
+        askGenerationRef.current += 1;
+        setStatus("listening");
       }
 
       if (!payload.endOfSpeech || !payload.content?.trim() || !payload.id) return;
@@ -265,9 +288,10 @@ export default function FeriaLive() {
   const { listening, interimText } = useContinuousSpeech({
     enabled: conversationActive && !useAnamMic,
     onUtterance: (text) => void handleUserUtterance(text),
-    onSpeechStart: () => {
-      interruptAvatar();
-      setStatus("listening");
+    onBargeIn: () => {
+      if (statusRef.current === "speaking" || statusRef.current === "thinking") {
+        interruptAvatar();
+      }
     },
   });
 

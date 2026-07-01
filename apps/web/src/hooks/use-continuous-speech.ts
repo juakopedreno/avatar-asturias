@@ -4,13 +4,14 @@ import { createBrowserSpeechRecognition, isBrowserSpeechAvailable } from "@/lib/
 type UseContinuousSpeechOptions = {
   enabled: boolean;
   onUtterance: (text: string) => void;
-  onSpeechStart?: () => void;
+  /** Se dispara en cuanto hay sonido/voz del usuario (barge-in agresivo). */
+  onBargeIn?: () => void;
 };
 
 export function useContinuousSpeech({
   enabled,
   onUtterance,
-  onSpeechStart,
+  onBargeIn,
 }: UseContinuousSpeechOptions) {
   const [listening, setListening] = useState(false);
   const [interimText, setInterimText] = useState("");
@@ -19,12 +20,20 @@ export function useContinuousSpeech({
   const restartTimerRef = useRef<number | null>(null);
   const lastUtteranceRef = useRef("");
   const lastUtteranceAtRef = useRef(0);
+  const lastBargeInAtRef = useRef(0);
   const onUtteranceRef = useRef(onUtterance);
-  const onSpeechStartRef = useRef(onSpeechStart);
+  const onBargeInRef = useRef(onBargeIn);
 
   enabledRef.current = enabled;
   onUtteranceRef.current = onUtterance;
-  onSpeechStartRef.current = onSpeechStart;
+  onBargeInRef.current = onBargeIn;
+
+  const triggerBargeIn = useCallback(() => {
+    const now = Date.now();
+    if (now - lastBargeInAtRef.current < 60) return;
+    lastBargeInAtRef.current = now;
+    onBargeInRef.current?.();
+  }, []);
 
   const clearRestartTimer = () => {
     if (restartTimerRef.current !== null) {
@@ -63,8 +72,14 @@ export function useContinuousSpeech({
     recognition.interimResults = true;
     recognitionRef.current = recognition;
 
+    recognition.onaudiostart = () => {
+      triggerBargeIn();
+    };
+    recognition.onsoundstart = () => {
+      triggerBargeIn();
+    };
     recognition.onspeechstart = () => {
-      onSpeechStartRef.current?.();
+      triggerBargeIn();
     };
 
     recognition.onresult = (event) => {
@@ -81,7 +96,11 @@ export function useContinuousSpeech({
         }
       }
 
-      setInterimText(interim.trim());
+      const trimmedInterim = interim.trim();
+      if (trimmedInterim) {
+        setInterimText(trimmedInterim);
+        triggerBargeIn();
+      }
 
       const normalizedFinal = finalText.replace(/\s+/g, " ").trim();
       if (!normalizedFinal) return;
