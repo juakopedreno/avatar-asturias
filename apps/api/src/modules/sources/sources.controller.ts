@@ -35,6 +35,12 @@ export class SourcesController {
     return this.sourcesService.listIngestionJobs();
   }
 
+  @Delete("jobs/:jobId")
+  @Roles("admin", "editor")
+  async deleteJob(@Param("jobId") jobId: string, @CurrentUser() user?: { email?: string }) {
+    return this.sourcesService.deleteIngestionJob(jobId, user?.email);
+  }
+
   @Delete(":id")
   @Roles("admin", "editor")
   async remove(@Param("id") id: string, @CurrentUser() user?: { email?: string }) {

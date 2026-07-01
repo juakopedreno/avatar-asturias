@@ -123,4 +123,59 @@ export class SourcesService {
       take: 50,
     });
   }
+
+  async deleteIngestionJob(id: string, actor?: string) {
+    const job = await this.prisma.ingestionJob.findUnique({ where: { id } });
+    if (!job) {
+      throw new NotFoundException("Job de ingesta no encontrado.");
+    }
+
+    if (job.sourceId && job.inputRef) {
+      const document = await this.prisma.sourceDocument.findFirst({
+        where: {
+          sourceId: job.sourceId,
+          OR: [{ uri: job.inputRef }, { title: job.inputRef }],
+        },
+      });
+
+      if (document) {
+        const chunkTexts = this.chunkTextForCleanup(document.rawText);
+        if (chunkTexts.length > 0) {
+          await this.prisma.knowledgeChunk.deleteMany({
+            where: {
+              sourceId: job.sourceId,
+              text: { in: chunkTexts },
+            },
+          });
+        }
+        await this.prisma.sourceDocument.delete({ where: { id: document.id } });
+        await this.prisma.source.update({
+          where: { id: job.sourceId },
+          data: { documents: { decrement: 1 } },
+        });
+      }
+    }
+
+    await this.prisma.ingestionJob.delete({ where: { id } });
+    await this.auditService
+      .append({
+        actor: actor ?? "sistema",
+        module: "sources",
+        action: "delete_job",
+        detail: `Job de ingesta eliminado: ${job.sourceKind} ${job.inputRef}`,
+      })
+      .catch(() => {});
+
+    return { ok: true };
+  }
+
+  private chunkTextForCleanup(raw: string, chunkSize = 900) {
+    const cleaned = raw.replace(/\s+/g, " ").trim();
+    if (!cleaned) return [];
+    const chunks: string[] = [];
+    for (let i = 0; i < cleaned.length; i += chunkSize) {
+      chunks.push(cleaned.slice(i, i + chunkSize));
+    }
+    return chunks;
+  }
 }
