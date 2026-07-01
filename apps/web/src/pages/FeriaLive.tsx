@@ -4,6 +4,7 @@ import { AnamEvent, MessageRole, createClient } from "@anam-ai/js-sdk";
 import { apiPost } from "@/lib/api";
 import { useChatBootstrapData } from "@/hooks/use-api-data";
 import { useContinuousSpeech } from "@/hooks/use-continuous-speech";
+import { useMicBargeIn } from "@/hooks/use-mic-barge-in";
 import { isBrowserSpeechAvailable } from "@/lib/browser-speech";
 import AsturiasMark from "@/components/brand/AsturiasMark";
 
@@ -50,10 +51,11 @@ export default function FeriaLive() {
     (data as { openingGreeting?: string } | undefined)?.openingGreeting ??
     "¡Hola! Soy CoVA. Habla cuando quieras, te escucho.";
 
-  const useAnamMic = useMemo(() => {
+  const useBrowserStt = useMemo(() => {
     const params = new URLSearchParams(window.location.search);
-    return params.get("anamMic") === "1";
+    return params.get("browserStt") === "1";
   }, []);
+  const useAnamMic = !useBrowserStt;
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const clientRef = useRef<AnamClientHandle | null>(null);
@@ -63,6 +65,15 @@ export default function FeriaLive() {
   const statusRef = useRef<LiveStatus>("idle");
   const unmountedRef = useRef(false);
   const processedUserMessageIdsRef = useRef<Set<string>>(new Set());
+  const avatarOutputBlockedRef = useRef(false);
+
+  const sendInterruptCommand = useCallback(() => {
+    try {
+      clientRef.current?.interruptPersona?.();
+    } catch {
+      // Sesión aún no lista para interrumpir.
+    }
+  }, []);
 
   const [avatarConnected, setAvatarConnected] = useState(false);
   const [audioEnabled, setAudioEnabled] = useState(false);
@@ -78,15 +89,23 @@ export default function FeriaLive() {
 
   const hardStopAvatarAudio = useCallback(() => {
     speakGenerationRef.current += 1;
-    clientRef.current?.interruptPersona?.();
+    avatarOutputBlockedRef.current = true;
+    sendInterruptCommand();
+    window.setTimeout(() => sendInterruptCommand(), 40);
+    window.setTimeout(() => sendInterruptCommand(), 150);
     const video = videoRef.current;
     if (video) {
+      video.muted = true;
       video.volume = 0;
-      window.setTimeout(() => {
-        if (videoRef.current && audioEnabled) {
-          videoRef.current.volume = 1;
-        }
-      }, 120);
+    }
+  }, [sendInterruptCommand]);
+
+  const unmuteAvatarOutput = useCallback(() => {
+    avatarOutputBlockedRef.current = false;
+    const video = videoRef.current;
+    if (video && audioEnabled) {
+      video.muted = false;
+      video.volume = 1;
     }
   }, [audioEnabled]);
 
@@ -148,12 +167,12 @@ export default function FeriaLive() {
       if (!clientRef.current || !avatarConnected || !content.trim()) return false;
 
       const generation = ++speakGenerationRef.current;
+      sendInterruptCommand();
       void ensureVideoPlaying(true);
+      unmuteAvatarOutput();
       setSubtitle(content);
       setStatus("speaking");
-      if (videoRef.current && audioEnabled) {
-        videoRef.current.volume = 1;
-      }
+      unmuteAvatarOutput();
 
       try {
         if (typeof clientRef.current.talk === "function") {
@@ -171,7 +190,7 @@ export default function FeriaLive() {
         return false;
       }
     },
-    [avatarConnected, audioEnabled, conversationActive],
+    [avatarConnected, conversationActive, sendInterruptCommand, unmuteAvatarOutput],
   );
 
   const handleUserUtterance = useCallback(
@@ -212,9 +231,9 @@ export default function FeriaLive() {
     await waitForVideoElement();
     const client = createClient(
       sessionToken,
-      useAnamMic
-        ? { voiceDetection: { endOfSpeechSensitivity: 0.72 } }
-        : { disableInputAudio: true },
+      useBrowserStt
+        ? { disableInputAudio: true }
+        : { voiceDetection: { endOfSpeechSensitivity: 0.68 } },
     ) as AnamClientHandle;
     clientRef.current = client;
 
@@ -227,6 +246,7 @@ export default function FeriaLive() {
     });
     client.addListener?.(AnamEvent.TALK_STREAM_INTERRUPTED, () => {
       hardStopAvatarAudio();
+      askGenerationRef.current += 1;
       if (conversationActive) setStatus("listening");
     });
     client.addListener?.(AnamEvent.MESSAGE_STREAM_EVENT_RECEIVED, (event) => {
@@ -245,10 +265,8 @@ export default function FeriaLive() {
       if (!useAnamMic || payload?.role !== MessageRole.USER) return;
 
       if (payload.content?.trim()) {
-        hardStopAvatarAudio();
+        interruptAvatar();
         setUserLine(payload.content.trim());
-        askGenerationRef.current += 1;
-        setStatus("listening");
       }
 
       if (!payload.endOfSpeech || !payload.content?.trim() || !payload.id) return;
@@ -286,13 +304,19 @@ export default function FeriaLive() {
   };
 
   const { listening, interimText } = useContinuousSpeech({
-    enabled: conversationActive && !useAnamMic,
+    enabled: conversationActive && useBrowserStt,
     onUtterance: (text) => void handleUserUtterance(text),
     onBargeIn: () => {
       if (statusRef.current === "speaking" || statusRef.current === "thinking") {
         interruptAvatar();
       }
     },
+  });
+
+  useMicBargeIn({
+    enabled: conversationActive && useBrowserStt,
+    active: status === "speaking",
+    onBargeIn: interruptAvatar,
   });
 
   const startConversation = async () => {
@@ -345,7 +369,7 @@ export default function FeriaLive() {
     if (!conversationActive) return "Pulsa para iniciar la conversación";
     if (status === "thinking") return "CoVA está pensando…";
     if (status === "speaking") return "CoVA está hablando — interrumpe hablando";
-    if (useAnamMic) return "Micrófono activo (Anam)";
+    if (useAnamMic) return "Micrófono activo — habla para interrumpir";
     if (listening) return "Escuchando… habla con naturalidad";
     return "Reconectando micrófono…";
   }, [conversationActive, listening, status, useAnamMic]);
@@ -404,7 +428,7 @@ export default function FeriaLive() {
           <button
             type="button"
             onClick={() => void startConversation()}
-            disabled={!avatarConnected || (!useAnamMic && !isBrowserSpeechAvailable())}
+            disabled={!avatarConnected || (useBrowserStt && !isBrowserSpeechAvailable())}
             className="flex items-center gap-2 rounded-full px-6 py-3 text-sm font-medium text-white disabled:opacity-50"
             style={{
               background: "rgba(8, 16, 27, 0.9)",
@@ -428,7 +452,7 @@ export default function FeriaLive() {
             {statusLabel}
           </div>
         )}
-        {!useAnamMic && !isBrowserSpeechAvailable() ? (
+        {!useBrowserStt ? null : !isBrowserSpeechAvailable() ? (
           <p className="text-xs text-red-200 max-w-sm text-center">
             Este navegador no soporta reconocimiento de voz continuo. Usa Chrome o Edge.
           </p>
