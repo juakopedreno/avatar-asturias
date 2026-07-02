@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { apiPost, apiPostForm } from "@/lib/api";
 import { createBrowserSpeechRecognition, isBrowserSpeechAvailable } from "@/lib/browser-speech";
 import { postFeriaMessage } from "@/lib/feria-channel";
+import { normalizeCovaInTranscript } from "@/lib/normalize-stt";
 
 type SupportedLanguage = "ES" | "EN" | "FR" | "DE";
 
@@ -46,7 +47,7 @@ export function useFeriaAsk(options: UseFeriaAskOptions = {}) {
   };
 
   const askQuestion = async (question: string) => {
-    const trimmed = question.trim();
+    const trimmed = normalizeCovaInTranscript(question);
     if (!trimmed) return;
 
     onInterrupt?.();
@@ -125,7 +126,7 @@ export function useFeriaAsk(options: UseFeriaAskOptions = {}) {
       const form = new FormData();
       form.append("file", blob, "voice.webm");
       const stt = await apiPostForm<SttResponse>("/stt/transcribe", form);
-      const question = (stt.text ?? "").trim();
+      const question = normalizeCovaInTranscript(stt.text ?? "");
       if (question) {
         setInputText(question);
         await askQuestion(question);
@@ -150,7 +151,7 @@ export function useFeriaAsk(options: UseFeriaAskOptions = {}) {
 
     browserRecognitionRef.current = recognition;
     recognition.onresult = (event) => {
-      const text = event.results[0]?.[0]?.transcript?.trim();
+      const text = normalizeCovaInTranscript(event.results[0]?.[0]?.transcript ?? "");
       if (text) {
         setInputText(text);
         void askQuestion(text);

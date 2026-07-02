@@ -1,32 +1,42 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createBrowserSpeechRecognition, isBrowserSpeechAvailable } from "@/lib/browser-speech";
+import { normalizeCovaInTranscript } from "@/lib/normalize-stt";
 
 type UseContinuousSpeechOptions = {
   enabled: boolean;
   onUtterance: (text: string) => void;
   /** Se dispara en cuanto hay sonido/voz del usuario (barge-in agresivo). */
   onBargeIn?: () => void;
+  /** Pausa de silencio antes de enviar la pregunta completa (ms). */
+  silenceMs?: number;
 };
+
+const DEFAULT_SILENCE_MS = 1700;
 
 export function useContinuousSpeech({
   enabled,
   onUtterance,
   onBargeIn,
+  silenceMs = DEFAULT_SILENCE_MS,
 }: UseContinuousSpeechOptions) {
   const [listening, setListening] = useState(false);
   const [interimText, setInterimText] = useState("");
   const recognitionRef = useRef<ReturnType<typeof createBrowserSpeechRecognition>>(null);
   const enabledRef = useRef(enabled);
   const restartTimerRef = useRef<number | null>(null);
-  const lastUtteranceRef = useRef("");
-  const lastUtteranceAtRef = useRef(0);
+  const finalizeTimerRef = useRef<number | null>(null);
+  const pendingBufferRef = useRef("");
+  const lastSentUtteranceRef = useRef("");
+  const lastSentAtRef = useRef(0);
   const lastBargeInAtRef = useRef(0);
   const onUtteranceRef = useRef(onUtterance);
   const onBargeInRef = useRef(onBargeIn);
+  const silenceMsRef = useRef(silenceMs);
 
   enabledRef.current = enabled;
   onUtteranceRef.current = onUtterance;
   onBargeInRef.current = onBargeIn;
+  silenceMsRef.current = silenceMs;
 
   const triggerBargeIn = useCallback(() => {
     const now = Date.now();
@@ -42,6 +52,37 @@ export function useContinuousSpeech({
     }
   };
 
+  const clearFinalizeTimer = () => {
+    if (finalizeTimerRef.current !== null) {
+      window.clearTimeout(finalizeTimerRef.current);
+      finalizeTimerRef.current = null;
+    }
+  };
+
+  const flushPendingUtterance = useCallback(() => {
+    clearFinalizeTimer();
+    const full = normalizeCovaInTranscript(pendingBufferRef.current);
+    pendingBufferRef.current = "";
+    setInterimText("");
+    if (!full) return;
+
+    const now = Date.now();
+    if (full === lastSentUtteranceRef.current && now - lastSentAtRef.current < 3000) {
+      return;
+    }
+    lastSentUtteranceRef.current = full;
+    lastSentAtRef.current = now;
+    onUtteranceRef.current(full);
+  }, []);
+
+  const scheduleFinalize = useCallback(() => {
+    clearFinalizeTimer();
+    finalizeTimerRef.current = window.setTimeout(() => {
+      finalizeTimerRef.current = null;
+      flushPendingUtterance();
+    }, silenceMsRef.current);
+  }, [flushPendingUtterance]);
+
   const scheduleRestart = useCallback((delayMs = 250) => {
     clearRestartTimer();
     if (!enabledRef.current) return;
@@ -53,8 +94,10 @@ export function useContinuousSpeech({
 
   const stopListening = useCallback(() => {
     clearRestartTimer();
+    clearFinalizeTimer();
     recognitionRef.current?.abort();
     recognitionRef.current = null;
+    pendingBufferRef.current = "";
     setListening(false);
     setInterimText("");
   }, []);
@@ -84,39 +127,34 @@ export function useContinuousSpeech({
 
     recognition.onresult = (event) => {
       let interim = "";
-      let finalText = "";
+      let finalChunk = "";
 
       for (let index = event.resultIndex; index < event.results.length; index += 1) {
         const result = event.results[index];
         const transcript = result[0]?.transcript ?? "";
         if (result.isFinal) {
-          finalText += transcript;
+          finalChunk += transcript;
         } else {
           interim += transcript;
         }
       }
 
-      const trimmedInterim = interim.trim();
-      if (trimmedInterim) {
-        setInterimText(trimmedInterim);
+      if (finalChunk.trim()) {
+        pendingBufferRef.current = `${pendingBufferRef.current} ${finalChunk}`.replace(/\s+/g, " ").trim();
+      }
+
+      const preview = normalizeCovaInTranscript(
+        `${pendingBufferRef.current} ${interim}`.replace(/\s+/g, " ").trim(),
+      );
+      setInterimText(preview);
+
+      if (interim.trim()) {
         triggerBargeIn();
       }
 
-      const normalizedFinal = finalText.replace(/\s+/g, " ").trim();
-      if (!normalizedFinal) return;
-
-      const now = Date.now();
-      if (
-        normalizedFinal === lastUtteranceRef.current &&
-        now - lastUtteranceAtRef.current < 2500
-      ) {
-        return;
+      if (finalChunk.trim() || interim.trim()) {
+        scheduleFinalize();
       }
-
-      lastUtteranceRef.current = normalizedFinal;
-      lastUtteranceAtRef.current = now;
-      setInterimText("");
-      onUtteranceRef.current(normalizedFinal);
     };
 
     recognition.onerror = (event) => {
@@ -129,6 +167,7 @@ export function useContinuousSpeech({
     };
 
     recognition.onend = () => {
+      flushPendingUtterance();
       setListening(false);
       recognitionRef.current = null;
       scheduleRestart();

@@ -6,6 +6,7 @@ import { useChatBootstrapData } from "@/hooks/use-api-data";
 import { useContinuousSpeech } from "@/hooks/use-continuous-speech";
 import { useMicBargeIn } from "@/hooks/use-mic-barge-in";
 import { isBrowserSpeechAvailable } from "@/lib/browser-speech";
+import { normalizeCovaInTranscript } from "@/lib/normalize-stt";
 import AsturiasMark from "@/components/brand/AsturiasMark";
 
 type AvatarSessionResponse = {
@@ -198,7 +199,7 @@ export default function FeriaLive() {
 
   const handleUserUtterance = useCallback(
     async (question: string) => {
-      const trimmed = question.trim();
+      const trimmed = normalizeCovaInTranscript(question);
       if (!trimmed || !conversationActive) return;
 
       const now = Date.now();
@@ -251,7 +252,7 @@ export default function FeriaLive() {
       sessionToken,
       useBrowserStt
         ? { disableInputAudio: true }
-        : { voiceDetection: { endOfSpeechSensitivity: 0.68 } },
+        : { voiceDetection: { endOfSpeechSensitivity: 0.42 } },
     ) as AnamClientHandle;
     clientRef.current = client;
 
@@ -281,16 +282,24 @@ export default function FeriaLive() {
 
       if (!useAnamMic || payload?.role !== MessageRole.USER) return;
 
-      if (payload.content?.trim() && !payload.endOfSpeech) {
+      const normalized = normalizeCovaInTranscript(payload.content ?? "");
+      if (!normalized) return;
+
+      if (!payload.endOfSpeech) {
         hardStopAvatarAudioRef.current();
-        setUserLine(payload.content.trim());
+        setUserLine(normalized);
         return;
       }
 
-      if (!payload.endOfSpeech || !payload.content?.trim() || !payload.id) return;
+      setUserLine(normalized);
+
+      // Con STT del navegador activo, él envía tras pausa de silencio (evita cortar preguntas largas).
+      if (isBrowserSpeechAvailable()) return;
+
+      if (!payload.id) return;
       if (processedUserMessageIdsRef.current.has(payload.id)) return;
       processedUserMessageIdsRef.current.add(payload.id);
-      handleUserUtteranceRef.current(payload.content.trim());
+      handleUserUtteranceRef.current(normalized);
     });
 
     await client.streamToVideoElement(VIDEO_ID);
