@@ -167,7 +167,14 @@ export function useContinuousSpeech({
     };
 
     recognition.onend = () => {
-      flushPendingUtterance();
+      // Si se detuvo a propósito (p. ej. avatar hablando), no enviar buffer residual.
+      if (enabledRef.current) {
+        flushPendingUtterance();
+      } else {
+        clearFinalizeTimer();
+        pendingBufferRef.current = "";
+        setInterimText("");
+      }
       setListening(false);
       recognitionRef.current = null;
       scheduleRestart();

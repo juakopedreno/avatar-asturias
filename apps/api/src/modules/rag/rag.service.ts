@@ -8,10 +8,20 @@ import { COVA_OPENING_GREETING, COVA_IDENTITY_ANSWER, COVA_IDENTITY_ANSWER_EN, C
 import { AskQuestionDto } from "./dto/ask-question.dto";
 import { IngestApiDto } from "./dto/ingest-api.dto";
 import { IngestWebDto } from "./dto/ingest-web.dto";
+import { cosineSimilarity, embedTexts, isRealEmbedding } from "./rag-embeddings";
 
 const CONTROLLED_RESPONSE_MIN_SCORE = 3;
 
 type CasualIntent = "greeting" | "wellbeing" | "thanks" | "farewell" | "open";
+
+type KnowledgeChunkCandidate = {
+  id: string;
+  sourceId: string;
+  sourceLabel: string;
+  text: string;
+  updatedAt: Date;
+  embedding: number[];
+};
 
 const INSTITUTIONAL_TOPIC_KEYWORDS = [
   "ayuda",
@@ -62,6 +72,7 @@ export class RagService {
     try {
       const text = await this.parsePdfText(file.buffer);
       const chunks = this.chunkText(text);
+      const embeddings = await embedTexts(chunks);
       const rows = await this.prisma.$transaction([
         this.prisma.sourceDocument.create({
           data: {
@@ -71,13 +82,13 @@ export class RagService {
             rawText: text,
           },
         }),
-        ...chunks.map((text) =>
+        ...chunks.map((chunkText, index) =>
           this.prisma.knowledgeChunk.create({
             data: {
               sourceId,
               sourceLabel: source.name,
-              text,
-              embedding: this.computePseudoEmbedding(text),
+              text: chunkText,
+              embedding: embeddings[index] ?? [],
             },
           }),
         ),
@@ -152,6 +163,7 @@ export class RagService {
       const $ = load(html);
       const text = $("body").text().replace(/\s+/g, " ").trim();
       const chunks = this.chunkText(text);
+      const embeddings = await embedTexts(chunks);
 
       await this.prisma.$transaction([
         this.prisma.sourceDocument.create({
@@ -162,13 +174,13 @@ export class RagService {
             rawText: text,
           },
         }),
-        ...chunks.map((chunk) =>
+        ...chunks.map((chunk, index) =>
           this.prisma.knowledgeChunk.create({
             data: {
               sourceId: dto.sourceId,
               sourceLabel: source.name,
               text: chunk,
-              embedding: this.computePseudoEmbedding(chunk),
+              embedding: embeddings[index] ?? [],
             },
           }),
         ),
@@ -206,6 +218,7 @@ export class RagService {
       const payload = await response.json();
       const text = JSON.stringify(payload);
       const chunks = this.chunkText(text);
+      const embeddings = await embedTexts(chunks);
 
       await this.prisma.$transaction([
         this.prisma.sourceDocument.create({
@@ -216,13 +229,13 @@ export class RagService {
             rawText: text,
           },
         }),
-        ...chunks.map((chunk) =>
+        ...chunks.map((chunk, index) =>
           this.prisma.knowledgeChunk.create({
             data: {
               sourceId: dto.sourceId,
               sourceLabel: source.name,
               text: chunk,
-              embedding: this.computePseudoEmbedding(chunk),
+              embedding: embeddings[index] ?? [],
             },
           }),
         ),
@@ -249,20 +262,15 @@ export class RagService {
   }
 
   async ask(dto: AskQuestionDto) {
-    const normalized = this.normalizeForSearch(dto.question);
-    if (this.isAssistantIdentityQuestion(normalized) && !this.isDocumentQuestion(normalized)) {
+    const { id: conversationId } = await this.resolveConversation(dto);
+    const history = await this.loadRecentHistory(conversationId);
+    const retrievalQuery = this.buildRetrievalQuery(dto.question, history);
+    const normalizedQuestion = this.normalizeForSearch(dto.question);
+    const normalizedRetrieval = this.normalizeForSearch(retrievalQuery);
+
+    if (this.isAssistantIdentityQuestion(normalizedQuestion) && !this.isDocumentQuestion(normalizedQuestion)) {
       const identityAnswer = this.getIdentityAnswerForLanguage(dto.language);
-      const conversation = await this.prisma.conversation.create({
-        data: {
-          language: dto.language,
-          messages: {
-            create: [
-              { role: "user", content: dto.question },
-              { role: "assistant", content: identityAnswer },
-            ],
-          },
-        },
-      });
+      await this.saveSimpleTurn(conversationId, dto.question, identityAnswer);
       return {
         answer: identityAnswer,
         uncertainty: false,
@@ -271,36 +279,21 @@ export class RagService {
           offTopicBlocked: false,
           personalDataUsedForTraining: false,
         },
-        conversationId: conversation.id,
+        conversationId,
       };
     }
 
-    if (this.isCasualConversation(normalized)) {
-      const intent = this.classifyCasualIntent(normalized);
+    if (this.isCasualConversation(normalizedQuestion)) {
+      const intent = this.classifyCasualIntent(normalizedQuestion);
       const casualAnswer =
         intent === "open"
           ? await this.generateCasualConversationAnswer(
               dto,
-              this.getCasualFallbackForLanguage(dto.language, normalized),
+              this.getCasualFallbackForLanguage(dto.language, normalizedQuestion),
+              history,
             )
           : this.getCasualAnswerForIntent(intent, dto.language);
-      const conversation = await this.prisma.conversation.create({
-        data: {
-          language: dto.language,
-          messages: {
-            create: [
-              {
-                role: "user",
-                content: dto.question,
-              },
-              {
-                role: "assistant",
-                content: casualAnswer,
-              },
-            ],
-          },
-        },
-      });
+      await this.saveSimpleTurn(conversationId, dto.question, casualAnswer);
       return {
         answer: casualAnswer,
         uncertainty: false,
@@ -309,38 +302,22 @@ export class RagService {
           offTopicBlocked: false,
           personalDataUsedForTraining: false,
         },
-        conversationId: conversation.id,
+        conversationId,
       };
     }
 
-    if (dto.wearablesSummary?.trim() && this.isExplicitWearablesRequest(normalized)) {
+    if (dto.wearablesSummary?.trim() && this.isExplicitWearablesRequest(normalizedQuestion)) {
       let wearablesAnswer = this.buildWearablesGuidanceAnswer(
         dto.language,
         dto.question,
         dto.wearablesSummary,
       );
-      const topicAlerts = await this.getAlertsMatchingQuestion(normalized);
+      const topicAlerts = await this.getAlertsMatchingQuestion(normalizedRetrieval);
       if (topicAlerts.length > 0) {
         const prefix = topicAlerts.map((a) => `[Aviso] ${a.title}: ${a.message}`).join(" ");
         wearablesAnswer = `${prefix} ${wearablesAnswer}`.trim();
       }
-      const conversation = await this.prisma.conversation.create({
-        data: {
-          language: dto.language,
-          messages: {
-            create: [
-              {
-                role: "user",
-                content: dto.question,
-              },
-              {
-                role: "assistant",
-                content: wearablesAnswer,
-              },
-            ],
-          },
-        },
-      });
+      await this.saveSimpleTurn(conversationId, dto.question, wearablesAnswer);
       return {
         answer: wearablesAnswer,
         uncertainty: false,
@@ -356,142 +333,115 @@ export class RagService {
           offTopicBlocked: false,
           personalDataUsedForTraining: false,
         },
-        conversationId: conversation.id,
+        conversationId,
       };
     }
 
-    const tokens = this.tokenizeForSearch(normalized);
-    const published = await this.contentService.findAllPublished();
-    const controlledScores = published.map((cr) => {
-      const score = this.scoreControlledResponse(normalized, tokens, cr.question, cr.questionVariants ?? []);
-      return { controlled: cr, score };
-    });
-    const bestControlled = controlledScores
-      .filter((x) => x.score >= CONTROLLED_RESPONSE_MIN_SCORE)
-      .sort((a, b) => b.score - a.score)[0];
+    const tokens = this.tokenizeForSearch(normalizedRetrieval);
+    const scopedSourceIds = await this.resolveScopedSourceIds(dto);
+    const feriaRagOnly = dto.ragScope === "feria" || Boolean(scopedSourceIds?.length);
 
-    if (bestControlled) {
-      let answer = bestControlled.controlled.answer;
-      const topicAlerts = await this.getAlertsMatchingQuestion(normalized);
-      if (topicAlerts.length > 0) {
-        const prefix = topicAlerts.map((a) => `[Aviso] ${a.title}: ${a.message}`).join(" ");
-        answer = `${prefix} ${answer}`.trim();
-      }
-      const conversation = await this.prisma.conversation.create({
-        data: { language: dto.language },
-      });
-      await this.prisma.message.create({
-        data: { conversationId: conversation.id, role: "user", content: dto.question },
-      });
-      const assistantMessage = await this.prisma.message.create({
-        data: { conversationId: conversation.id, role: "assistant", content: answer },
-      });
-      await this.prisma.citation.create({
-        data: {
-          messageId: assistantMessage.id,
-          sourceId: bestControlled.controlled.id,
-          sourceLabel: "Respuesta controlada",
-          updatedAt: bestControlled.controlled.updatedAt,
-        },
-      });
+    if (dto.ragScope === "feria" && (!scopedSourceIds || scopedSourceIds.length === 0)) {
+      const noFeriaSourcesAnswer = this.buildNoSourceAnswer(dto.brief);
+      await this.saveSimpleTurn(conversationId, dto.question, noFeriaSourcesAnswer);
       return {
-        answer,
-        uncertainty: false,
-        sources: [
-          {
-            id: bestControlled.controlled.id,
-            label: "Respuesta controlada",
+        answer: noFeriaSourcesAnswer,
+        uncertainty: true,
+        sources: [],
+        conversationId,
+      };
+    }
+
+    if (!feriaRagOnly) {
+      const published = await this.contentService.findAllPublished();
+      const controlledScores = published.map((cr) => {
+        const score = this.scoreControlledResponse(
+          normalizedRetrieval,
+          tokens,
+          cr.question,
+          cr.questionVariants ?? [],
+        );
+        return { controlled: cr, score };
+      });
+      const bestControlled = controlledScores
+        .filter((x) => x.score >= CONTROLLED_RESPONSE_MIN_SCORE)
+        .sort((a, b) => b.score - a.score)[0];
+
+      if (bestControlled) {
+        let answer = bestControlled.controlled.answer;
+        if (dto.brief) {
+          answer = this.trimForVoiceAnswer(answer);
+        }
+        const topicAlerts = await this.getAlertsMatchingQuestion(normalizedRetrieval);
+        if (topicAlerts.length > 0) {
+          const prefix = topicAlerts.map((a) => `[Aviso] ${a.title}: ${a.message}`).join(" ");
+          answer = `${prefix} ${answer}`.trim();
+        }
+        await this.prisma.message.create({
+          data: { conversationId, role: "user", content: dto.question },
+        });
+        const assistantMessage = await this.prisma.message.create({
+          data: { conversationId, role: "assistant", content: answer },
+        });
+        await this.prisma.citation.create({
+          data: {
+            messageId: assistantMessage.id,
+            sourceId: bestControlled.controlled.id,
             sourceLabel: "Respuesta controlada",
             updatedAt: bestControlled.controlled.updatedAt,
           },
-        ],
-        guardrails: { offTopicBlocked: false, personalDataUsedForTraining: false },
-        conversationId: conversation.id,
-      };
+        });
+        return {
+          answer,
+          uncertainty: false,
+          sources: [
+            {
+              id: bestControlled.controlled.id,
+              label: "Respuesta controlada",
+              sourceLabel: "Respuesta controlada",
+              updatedAt: bestControlled.controlled.updatedAt,
+            },
+          ],
+          guardrails: { offTopicBlocked: false, personalDataUsedForTraining: false },
+          conversationId,
+        };
+      }
     }
 
-    const candidates = await this.prisma.knowledgeChunk.findMany({
-      select: {
-        id: true,
-        sourceId: true,
-        sourceLabel: true,
-        text: true,
-        updatedAt: true,
-      },
-      orderBy: { updatedAt: "desc" },
-      take: Number.parseInt(process.env.RAG_MAX_CHUNKS ?? "400", 10) || 400,
-    });
-    const scored = candidates
-      .map((chunk) => {
-        const chunkNormalized = this.normalizeForSearch(`${chunk.sourceLabel} ${chunk.text}`);
-        let score = 0;
-        for (const token of tokens) {
-          if (chunkNormalized.includes(token)) {
-            score += 1;
-          }
-        }
-        if (chunkNormalized.includes(normalized)) {
-          score += 4;
-        }
-        if (this.isDocumentQuestion(normalized) && this.isDocumentSource(chunk.sourceLabel)) {
-          score += 3;
-        }
-        return { chunk, score };
-      })
-      .filter((item) => item.score > 0)
-      .sort((a, b) => b.score - a.score);
-    const matched = scored.slice(0, 6).map((item) => item.chunk);
+    const candidates = await this.fetchKnowledgeCandidates(scopedSourceIds);
+    const matched =
+      feriaRagOnly && candidates.length > 0
+        ? candidates
+        : await this.rankChunksByRelevance(candidates, retrievalQuery, tokens, normalizedRetrieval);
 
     if (matched.length === 0) {
-      let noSourceAnswer =
-        "No dispongo de una fuente fiable para esa consulta en este momento. Te recomiendo revisar los canales oficiales del Principado de Asturias o reformular la pregunta.";
-      const topicAlerts = await this.getAlertsMatchingQuestion(normalized);
+      let noSourceAnswer = this.buildNoSourceAnswer(dto.brief);
+      const topicAlerts = await this.getAlertsMatchingQuestion(normalizedRetrieval);
       if (topicAlerts.length > 0) {
         const prefix = topicAlerts.map((a) => `[Aviso] ${a.title}: ${a.message}`).join(" ");
         noSourceAnswer = `${prefix} ${noSourceAnswer}`.trim();
       }
-      const conversation = await this.prisma.conversation.create({
-        data: {
-          language: dto.language,
-          messages: {
-            create: [
-              {
-                role: "user",
-                content: dto.question,
-              },
-              {
-                role: "assistant",
-                content: noSourceAnswer,
-              },
-            ],
-          },
-        },
-      });
+      await this.saveSimpleTurn(conversationId, dto.question, noSourceAnswer);
       return {
         answer: noSourceAnswer,
         uncertainty: true,
         sources: [],
-        conversationId: conversation.id,
+        conversationId,
       };
     }
 
     const selectedForCitations = matched.slice(0, 3);
     const [generated, topicAlerts] = await Promise.all([
-      this.generateContextualAnswer(dto, matched),
-      this.getAlertsMatchingQuestion(normalized),
+      this.generateContextualAnswer(dto, matched, history),
+      this.getAlertsMatchingQuestion(normalizedRetrieval),
     ]);
     let finalAnswer = generated.answer;
     if (topicAlerts.length > 0) {
       const prefix = topicAlerts.map((a) => `[Aviso] ${a.title}: ${a.message}`).join(" ");
       finalAnswer = `${prefix} ${finalAnswer}`.trim();
     }
-    const conversation = await this.prisma.conversation.create({
-      data: {
-        language: dto.language,
-      },
-    });
     void this.persistAskTurn({
-      conversationId: conversation.id,
+      conversationId,
       question: dto.question,
       answer: finalAnswer,
       citations: selectedForCitations,
@@ -509,8 +459,206 @@ export class RagService {
         offTopicBlocked: generated.offTopicBlocked,
         personalDataUsedForTraining: false,
       },
-      conversationId: conversation.id,
+      conversationId,
     };
+  }
+
+  private async resolveConversation(dto: AskQuestionDto): Promise<{ id: string }> {
+    if (dto.conversationId) {
+      const existing = await this.prisma.conversation.findUnique({
+        where: { id: dto.conversationId },
+      });
+      if (existing) {
+        return { id: existing.id };
+      }
+    }
+    const conversation = await this.prisma.conversation.create({
+      data: { language: dto.language },
+    });
+    return { id: conversation.id };
+  }
+
+  private async loadRecentHistory(conversationId: string, maxMessages = 6) {
+    const messages = await this.prisma.message.findMany({
+      where: { conversationId },
+      orderBy: { createdAt: "desc" },
+      take: maxMessages,
+      select: { role: true, content: true },
+    });
+    return messages.reverse();
+  }
+
+  private buildRetrievalQuery(
+    question: string,
+    history: Array<{ role: string; content: string }>,
+  ): string {
+    const recentUser = history
+      .filter((message) => message.role === "user")
+      .slice(-2)
+      .map((message) => message.content);
+    return [...recentUser, question].filter(Boolean).join(" ");
+  }
+
+  private formatHistoryForPrompt(history: Array<{ role: string; content: string }>): string {
+    return history
+      .map((message) => `${message.role === "user" ? "Usuario" : "CoVA"}: ${message.content}`)
+      .join("\n");
+  }
+
+  private async saveSimpleTurn(conversationId: string, question: string, answer: string) {
+    await this.prisma.message.createMany({
+      data: [
+        { conversationId, role: "user", content: question },
+        { conversationId, role: "assistant", content: answer },
+      ],
+    });
+  }
+
+  private trimForVoiceAnswer(answer: string): string {
+    const sentences = answer
+      .replace(/\s+/g, " ")
+      .trim()
+      .split(/(?<=[.!?…])\s+/)
+      .filter(Boolean);
+    if (sentences.length <= 3) {
+      return sentences.join(" ");
+    }
+    return `${sentences.slice(0, 3).join(" ")} ¿Quieres que te cuente más?`;
+  }
+
+  private async resolveScopedSourceIds(dto: AskQuestionDto): Promise<string[] | undefined> {
+    if (dto.sourceIds?.length) {
+      return dto.sourceIds;
+    }
+    if (dto.ragScope !== "feria") {
+      return undefined;
+    }
+
+    const envIds = (process.env.FERIA_RAG_SOURCE_IDS ?? "")
+      .split(",")
+      .map((id) => id.trim())
+      .filter(Boolean);
+    if (envIds.length > 0) {
+      return envIds;
+    }
+
+    const patterns = (process.env.FERIA_RAG_SOURCE_NAME_PATTERNS ??
+      "Feria_Prompt,FAQ_ciudadania,SocialAsturias")
+      .split(",")
+      .map((pattern) => pattern.trim().toLowerCase())
+      .filter(Boolean);
+
+    const sources = await this.prisma.source.findMany({
+      where: { status: "synced" },
+      select: { id: true, name: true },
+    });
+
+    const matched = sources.filter((source) => {
+      const name = source.name.toLowerCase();
+      return patterns.some((pattern) => name.includes(pattern));
+    });
+
+    return matched.length > 0 ? matched.map((source) => source.id) : undefined;
+  }
+
+  private async fetchKnowledgeCandidates(sourceIds?: string[]): Promise<KnowledgeChunkCandidate[]> {
+    const take = Number.parseInt(process.env.RAG_MAX_CHUNKS ?? "400", 10) || 400;
+    return this.prisma.knowledgeChunk.findMany({
+      where: sourceIds?.length ? { sourceId: { in: sourceIds } } : undefined,
+      select: {
+        id: true,
+        sourceId: true,
+        sourceLabel: true,
+        text: true,
+        updatedAt: true,
+        embedding: true,
+      },
+      orderBy: { updatedAt: "desc" },
+      take,
+    });
+  }
+
+  private buildNoSourceAnswer(brief?: boolean): string {
+    if (brief) {
+      return "No tengo información clara sobre eso ahora mismo. ¿Puedes reformular la pregunta o concretar un poco más?";
+    }
+    return "No dispongo de información suficiente sobre eso en este momento. Te recomiendo reformular la pregunta o consultar los canales oficiales del Principado de Asturias.";
+  }
+
+  private async ensureChunkEmbeddings(chunks: KnowledgeChunkCandidate[]) {
+    const stale = chunks.filter((chunk) => !isRealEmbedding(chunk.embedding));
+    if (stale.length === 0) {
+      return;
+    }
+
+    const embeddings = await embedTexts(stale.map((chunk) => chunk.text));
+    await Promise.all(
+      stale.map((chunk, index) => {
+        const embedding = embeddings[index] ?? [];
+        chunk.embedding = embedding;
+        if (!isRealEmbedding(embedding)) {
+          return Promise.resolve();
+        }
+        return this.prisma.knowledgeChunk.update({
+          where: { id: chunk.id },
+          data: { embedding },
+        });
+      }),
+    );
+  }
+
+  private async rankChunksByRelevance(
+    candidates: KnowledgeChunkCandidate[],
+    retrievalQuery: string,
+    tokens: string[],
+    normalizedRetrieval: string,
+    limit = 6,
+  ): Promise<KnowledgeChunkCandidate[]> {
+    if (candidates.length === 0) {
+      return [];
+    }
+
+    await this.ensureChunkEmbeddings(candidates);
+
+    let queryEmbedding: number[] = [];
+    const queryEmbeddings = await embedTexts([retrievalQuery]);
+    queryEmbedding = queryEmbeddings[0] ?? [];
+    const hasVectorSearch = isRealEmbedding(queryEmbedding);
+
+    const scored = candidates.map((chunk) => {
+      const chunkNormalized = this.normalizeForSearch(`${chunk.sourceLabel} ${chunk.text}`);
+      let keywordScore = 0;
+      for (const token of tokens) {
+        if (chunkNormalized.includes(token)) {
+          keywordScore += 1;
+        }
+      }
+      if (chunkNormalized.includes(normalizedRetrieval)) {
+        keywordScore += 4;
+      }
+      if (this.isDocumentQuestion(normalizedRetrieval) && this.isDocumentSource(chunk.sourceLabel)) {
+        keywordScore += 3;
+      }
+
+      const keywordNorm = keywordScore / Math.max(tokens.length, 1);
+      const vectorScore = hasVectorSearch && isRealEmbedding(chunk.embedding)
+        ? cosineSimilarity(queryEmbedding, chunk.embedding)
+        : 0;
+      const score = hasVectorSearch ? vectorScore * 0.72 + keywordNorm * 0.28 : keywordScore;
+
+      return { chunk, score, keywordScore };
+    });
+
+    scored.sort((a, b) => b.score - a.score);
+
+    if (hasVectorSearch) {
+      return scored.slice(0, limit).map((item) => item.chunk);
+    }
+
+    return scored
+      .filter((item) => item.keywordScore > 0)
+      .slice(0, limit)
+      .map((item) => item.chunk);
   }
 
   private async persistAskTurn(input: {
@@ -584,23 +732,21 @@ export class RagService {
     return chunks;
   }
 
-  private computePseudoEmbedding(text: string) {
-    const base = Math.min(1, text.length / 1000);
-    return [base, base / 2, base / 3];
-  }
-
   private async generateContextualAnswer(
     dto: AskQuestionDto,
     matched: Array<{ sourceId: string; sourceLabel: string; text: string; updatedAt: Date }>,
+    history: Array<{ role: string; content: string }> = [],
   ): Promise<{ answer: string; uncertainty: boolean; offTopicBlocked: boolean }> {
+    const useFullFeriaContext = dto.ragScope === "feria" && matched.length > 12;
     const context = matched
       .map((chunk, index) => {
-        const snippet = chunk.text.slice(0, dto.brief ? 420 : 700).replace(/\s+/g, " ").trim();
+        const maxSnippet = dto.brief ? (useFullFeriaContext ? 360 : 420) : 700;
+        const snippet = chunk.text.slice(0, maxSnippet).replace(/\s+/g, " ").trim();
         return `[${index + 1}] ${chunk.sourceLabel}\n${snippet}`;
       })
       .join("\n\n");
 
-    const localFallback = this.buildLocalAnswer(dto.question, matched);
+    const localFallback = this.buildLocalAnswer(dto.question, matched, dto.brief);
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
       return {
@@ -626,8 +772,17 @@ export class RagService {
           ? " No incluyas cifras ni análisis detallados de pulsera o biometría: el usuario no ha pedido datos del dispositivo en esta conversación. Responde de forma breve y natural."
           : "";
       const briefHint = dto.brief
-        ? " Responde en 2-3 frases cortas, directas y fáciles de escuchar en voz alta."
+        ? " Responde SOLO con 2 o 3 frases cortas, directas y fáciles de escuchar en voz alta. " +
+          "Si el tema admite más detalle, termina con una pregunta breve como «¿Quieres que te cuente más?». " +
+          "No uses listas ni párrafos largos."
         : "";
+      const feriaHint = dto.ragScope === "feria"
+        ? " Responde únicamente con la información de los documentos de feria proporcionados en el contexto."
+        : "";
+      const historyBlock =
+        history.length > 0
+          ? `\nConversación reciente:\n${this.formatHistoryForPrompt(history)}\n`
+          : "";
       const response = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -637,7 +792,7 @@ export class RagService {
         body: JSON.stringify({
           model: process.env.RAG_OPENAI_MODEL ?? "gpt-4o-mini",
           temperature: 0.2,
-          max_tokens: dto.brief ? 180 : 350,
+          max_tokens: dto.brief ? 110 : 350,
           messages: [
             {
               role: "system",
@@ -649,12 +804,14 @@ export class RagService {
                 "No des asesoramiento legal vinculante ni sustituyas la atención presencial cuando el trámite lo requiera." +
                 wearableSystemHint +
                 noWearablesDetailHint +
-                briefHint,
+                briefHint +
+                feriaHint,
             },
             {
               role: "user",
               content:
-                `Pregunta del usuario:\n${dto.question}\n` +
+                `Pregunta actual del usuario:\n${dto.question}\n` +
+                historyBlock +
                 wearablesBlock +
                 `\nContexto recuperado:\n${context}\n\n` +
                 "Redacta una respuesta útil para el usuario final.",
@@ -688,7 +845,7 @@ export class RagService {
       }
 
       return {
-        answer,
+        answer: dto.brief ? this.trimForVoiceAnswer(answer) : answer,
         uncertainty: false,
         offTopicBlocked: false,
       };
@@ -704,19 +861,22 @@ export class RagService {
   private buildLocalAnswer(
     question: string,
     matched: Array<{ sourceLabel: string; text: string }>,
+    brief = false,
   ): string {
     const summary = matched
-      .slice(0, 2)
+      .slice(0, brief ? 1 : 2)
       .map((chunk) => chunk.text.replace(/\s+/g, " ").trim())
       .join(" ");
     if (!summary) {
-      return "No dispongo de contexto suficiente para responder con fiabilidad en este momento.";
+      return brief
+        ? "No tengo contexto suficiente ahora mismo. ¿Puedes reformular la pregunta?"
+        : "No dispongo de contexto suficiente para responder con fiabilidad en este momento.";
     }
-    const excerpt = summary.slice(0, 480);
-    return (
+    const excerpt = summary.slice(0, brief ? 220 : 480);
+    const base =
       `Segun las fuentes disponibles, para tu consulta "${question}" ` +
-      `la informacion relevante es: ${excerpt}${summary.length > 480 ? "..." : ""}`
-    );
+      `la informacion relevante es: ${excerpt}${summary.length > excerpt.length ? "..." : ""}`;
+    return brief ? this.trimForVoiceAnswer(base) : base;
   }
 
   /** Saludo ligero: guiño opcional sin volcar métricas del wearable. */
@@ -781,7 +941,11 @@ export class RagService {
     return this.getSmallTalkAnswerForLanguage(language);
   }
 
-  private async generateCasualConversationAnswer(dto: AskQuestionDto, fallback: string): Promise<string> {
+  private async generateCasualConversationAnswer(
+    dto: AskQuestionDto,
+    fallback: string,
+    history: Array<{ role: string; content: string }> = [],
+  ): Promise<string> {
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) return fallback;
 
@@ -811,6 +975,10 @@ export class RagService {
                 "No inventes trámites, normativa, plazos, importes ni datos administrativos. " +
                 "Máximo 2 frases cortas. Cierra invitando a ayudar con ayudas, trámites o servicios del Principado si encaja.",
             },
+            ...history.map((message) => ({
+              role: message.role === "user" ? "user" : "assistant",
+              content: message.content,
+            })),
             {
               role: "user",
               content: dto.question,

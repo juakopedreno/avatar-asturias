@@ -45,6 +45,13 @@ const isSystemNotice = (content: string): boolean => {
 const VIDEO_ID = "feria-live-video";
 const FERIA_DISPLAY_BG = "#08101b";
 const FERIA_DISPLAY_BG_SOFT = "#0a1628";
+const THINKING_FILLER_DELAY_MS = 450;
+const THINKING_FILLER_PHRASES = [
+  "Un momento…",
+  "Déjame mirarlo…",
+  "Voy a consultarlo…",
+  "Un segundito…",
+];
 
 export default function FeriaLive() {
   const { data } = useChatBootstrapData();
@@ -68,6 +75,7 @@ export default function FeriaLive() {
   const processedUserMessageIdsRef = useRef<Set<string>>(new Set());
   const avatarOutputBlockedRef = useRef(false);
   const lastHandledUtteranceRef = useRef({ text: "", at: 0 });
+  const conversationIdRef = useRef<string | null>(null);
   const handleUserUtteranceRef = useRef<(question: string) => void>(() => {});
   const hardStopAvatarAudioRef = useRef<() => void>(() => {});
   const conversationActiveRef = useRef(false);
@@ -175,6 +183,7 @@ export default function FeriaLive() {
       void ensureVideoPlaying(true);
       unmuteAvatarOutput();
       setSubtitle(content);
+      setUserLine(null);
       setStatus("speaking");
       unmuteAvatarOutput();
 
@@ -217,21 +226,60 @@ export default function FeriaLive() {
       setStatus("thinking");
       setError(null);
 
+      let fillerTimer: number | null = null;
+      let fillerStarted = false;
+
+      const startThinkingFiller = () => {
+        if (generation !== askGenerationRef.current || fillerStarted) return;
+        if (!clientRef.current || !avatarConnected) return;
+
+        fillerStarted = true;
+        const filler =
+          THINKING_FILLER_PHRASES[Math.floor(Math.random() * THINKING_FILLER_PHRASES.length)];
+        setSubtitle(filler);
+        setStatus("speaking");
+        unmuteAvatarOutput();
+        void clientRef.current.talk?.(filler);
+      };
+
+      fillerTimer = window.setTimeout(startThinkingFiller, THINKING_FILLER_DELAY_MS);
+
       try {
-        const rag = await apiPost<{ answer: string }>("/rag/ask", {
+        const rag = await apiPost<{ answer: string; conversationId?: string }>("/rag/ask", {
           question: trimmed,
           language: "ES",
           brief: true,
+          ragScope: "feria",
+          conversationId: conversationIdRef.current ?? undefined,
         });
         if (generation !== askGenerationRef.current) return;
+
+        if (rag.conversationId) {
+          conversationIdRef.current = rag.conversationId;
+        }
+
+        if (fillerTimer !== null) {
+          window.clearTimeout(fillerTimer);
+        }
+
+        if (fillerStarted) {
+          hardStopAvatarAudio();
+        }
+
         await speakWithAvatar(rag.answer);
       } catch (err) {
+        if (fillerTimer !== null) {
+          window.clearTimeout(fillerTimer);
+        }
+        if (fillerStarted) {
+          hardStopAvatarAudio();
+        }
         if (generation !== askGenerationRef.current) return;
         setError(err instanceof Error ? err.message : "No se pudo obtener respuesta");
         setStatus("listening");
       }
     },
-    [conversationActive, hardStopAvatarAudio, speakWithAvatar],
+    [avatarConnected, conversationActive, hardStopAvatarAudio, speakWithAvatar, unmuteAvatarOutput],
   );
 
   useEffect(() => {
@@ -286,10 +334,16 @@ export default function FeriaLive() {
       if (!normalized) return;
 
       if (!payload.endOfSpeech) {
-        hardStopAvatarAudioRef.current();
+        if (statusRef.current === "speaking" || statusRef.current === "thinking") {
+          hardStopAvatarAudioRef.current();
+          setStatus("listening");
+          return;
+        }
         setUserLine(normalized);
         return;
       }
+
+      if (statusRef.current !== "listening") return;
 
       setUserLine(normalized);
 
@@ -330,8 +384,10 @@ export default function FeriaLive() {
     }
   };
 
+  const listeningForUser = conversationActive && status === "listening";
+
   const { listening, interimText } = useContinuousSpeech({
-    enabled: conversationActive,
+    enabled: listeningForUser,
     onUtterance: (text) => handleUserUtteranceRef.current(text),
     onBargeIn: () => {
       if (statusRef.current === "speaking" || statusRef.current === "thinking") {
@@ -342,8 +398,8 @@ export default function FeriaLive() {
   });
 
   useMicBargeIn({
-    enabled: conversationActive && useBrowserStt,
-    active: status === "speaking",
+    enabled: conversationActive,
+    active: status === "speaking" || status === "thinking",
     onBargeIn: () => {
       hardStopAvatarAudioRef.current();
       setStatus("listening");
@@ -358,6 +414,7 @@ export default function FeriaLive() {
     }
     processedUserMessageIdsRef.current.clear();
     lastHandledUtteranceRef.current = { text: "", at: 0 };
+    conversationIdRef.current = null;
     setConversationActive(true);
     setSubtitle(openingGreeting);
     setStatus("listening");
@@ -439,11 +496,11 @@ export default function FeriaLive() {
       </div>
 
       <div className="absolute left-1/2 -translate-x-1/2 z-20 w-[min(90vw,640px)] bottom-28 space-y-2">
-        {userLine ? (
+        {listeningForUser && userLine ? (
           <p className="rounded-xl bg-white/10 text-white/90 text-xs px-4 py-2 text-center backdrop-blur-sm">
             Tú: {interimText || userLine}
           </p>
-        ) : interimText ? (
+        ) : listeningForUser && interimText ? (
           <p className="rounded-xl bg-white/10 text-white/90 text-xs px-4 py-2 text-center backdrop-blur-sm">
             Tú: {interimText}
           </p>

@@ -29,6 +29,7 @@ export function useFeriaAsk(options: UseFeriaAskOptions = {}) {
   const recordingStreamRef = useRef<MediaStream | null>(null);
   const audioChunksRef = useRef<BlobPart[]>([]);
   const browserRecognitionRef = useRef<ReturnType<typeof createBrowserSpeechRecognition>>(null);
+  const conversationIdRef = useRef<string | null>(null);
   const askGenerationRef = useRef(0);
 
   const stopRecordingTracks = () => {
@@ -61,12 +62,17 @@ export function useFeriaAsk(options: UseFeriaAskOptions = {}) {
     }
 
     try {
-      const rag = await apiPost<{ answer: string }>("/rag/ask", {
+      const rag = await apiPost<{ answer: string; conversationId?: string }>("/rag/ask", {
         question: trimmed,
         language: "ES",
         brief: true,
+        ragScope: "feria",
+        conversationId: conversationIdRef.current ?? undefined,
       });
       if (generation !== askGenerationRef.current) return;
+      if (rag.conversationId) {
+        conversationIdRef.current = rag.conversationId;
+      }
       deliverAnswer(rag.answer);
       setInputText("");
     } catch (err) {
