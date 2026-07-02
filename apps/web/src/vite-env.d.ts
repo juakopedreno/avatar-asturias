@@ -2,6 +2,7 @@
 
 interface ImportMetaEnv {
   readonly VITE_API_BASE_URL?: string;
+  readonly VITE_FERIA_WIDGET_AGENT_ID?: string;
   readonly VITE_ANAM_WIDGET_AGENT_ID?: string;
 }
 

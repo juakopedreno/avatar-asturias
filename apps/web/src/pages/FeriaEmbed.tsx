@@ -1,9 +1,9 @@
 import { useEffect, useMemo } from "react";
 
 const WIDGET_SCRIPT_SRC = "https://unpkg.com/@anam-ai/agent-widget";
-const DEFAULT_ANAM_WIDGET_AGENT_ID = "d41e1d25-8129-4aa8-a757-5f867835cdd1";
+const DEFAULT_WIDGET_AGENT_ID = "d41e1d25-8129-4aa8-a757-5f867835cdd1";
 
-function loadAnamWidgetScript(): Promise<void> {
+function loadWidgetScript(): Promise<void> {
   if (customElements.get("anam-agent")) {
     return Promise.resolve();
   }
@@ -21,18 +21,20 @@ function loadAnamWidgetScript(): Promise<void> {
       script.dataset.loaded = "true";
       resolve();
     };
-    script.onerror = () => reject(new Error("No se pudo cargar el widget de Anam"));
+    script.onerror = () => reject(new Error("No se pudo cargar el widget"));
     if (!existing) {
       document.body.appendChild(script);
     }
   });
 }
 
-export default function FeriaAnamEmbed() {
+export default function FeriaEmbed() {
   const agentId = useMemo(() => {
     const fromQuery = new URLSearchParams(window.location.search).get("agent")?.trim();
-    const fromEnv = import.meta.env.VITE_ANAM_WIDGET_AGENT_ID?.trim();
-    return fromQuery || fromEnv || DEFAULT_ANAM_WIDGET_AGENT_ID;
+    const fromEnv =
+      import.meta.env.VITE_FERIA_WIDGET_AGENT_ID?.trim() ||
+      import.meta.env.VITE_ANAM_WIDGET_AGENT_ID?.trim();
+    return fromQuery || fromEnv || DEFAULT_WIDGET_AGENT_ID;
   }, []);
 
   useEffect(() => {
@@ -45,7 +47,7 @@ export default function FeriaAnamEmbed() {
   }, []);
 
   useEffect(() => {
-    void loadAnamWidgetScript().catch(() => undefined);
+    void loadWidgetScript().catch(() => undefined);
   }, []);
 
   useEffect(() => {
@@ -57,7 +59,7 @@ export default function FeriaAnamEmbed() {
 
   return (
     <div className="min-h-screen w-screen bg-[#08101b]">
-      {/* @ts-expect-error Web component de Anam */}
+      {/* @ts-expect-error Web component del proveedor de avatar */}
       <anam-agent agent-id={agentId} />
     </div>
   );
