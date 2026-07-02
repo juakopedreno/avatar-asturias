@@ -9,6 +9,7 @@ import AvatarDemo from "./pages/AvatarDemo";
 import FeriaDisplay from "./pages/FeriaDisplay";
 import FeriaLive from "./pages/FeriaLive";
 import FeriaKiosk from "./pages/FeriaKiosk";
+import FeriaAnamEmbed from "./pages/FeriaAnamEmbed";
 import AdminLayout from "./components/layout/AdminLayout";
 import Dashboard from "./pages/admin/Dashboard";
 import ContentManagement from "./pages/admin/ContentManagement";
@@ -57,6 +58,7 @@ const App = () => {
             <Route path="/feria/display" element={<FeriaDisplay />} />
             <Route path="/feria/live" element={<FeriaLive />} />
             <Route path="/feria/kiosk" element={<FeriaKiosk />} />
+            <Route path="/feria/anam-embed" element={<FeriaAnamEmbed />} />
             <Route path="/admin/login" element={<AdminLoginPage />} />
             <Route path="/admin" element={<AdminLayout />}>
               <Route index element={<Dashboard />} />

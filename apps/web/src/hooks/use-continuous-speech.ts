@@ -9,6 +9,8 @@ type UseContinuousSpeechOptions = {
   onBargeIn?: () => void;
   /** Pausa de silencio antes de enviar la pregunta completa (ms). */
   silenceMs?: number;
+  /** Si devuelve false, se descarta la transcripción (p. ej. eco del altavoz). */
+  shouldAcceptUtterance?: (text: string) => boolean;
 };
 
 const DEFAULT_SILENCE_MS = 1700;
@@ -18,6 +20,7 @@ export function useContinuousSpeech({
   onUtterance,
   onBargeIn,
   silenceMs = DEFAULT_SILENCE_MS,
+  shouldAcceptUtterance,
 }: UseContinuousSpeechOptions) {
   const [listening, setListening] = useState(false);
   const [interimText, setInterimText] = useState("");
@@ -32,11 +35,13 @@ export function useContinuousSpeech({
   const onUtteranceRef = useRef(onUtterance);
   const onBargeInRef = useRef(onBargeIn);
   const silenceMsRef = useRef(silenceMs);
+  const shouldAcceptUtteranceRef = useRef(shouldAcceptUtterance);
 
   enabledRef.current = enabled;
   onUtteranceRef.current = onUtterance;
   onBargeInRef.current = onBargeIn;
   silenceMsRef.current = silenceMs;
+  shouldAcceptUtteranceRef.current = shouldAcceptUtterance;
 
   const triggerBargeIn = useCallback(() => {
     const now = Date.now();
@@ -65,6 +70,9 @@ export function useContinuousSpeech({
     pendingBufferRef.current = "";
     setInterimText("");
     if (!full) return;
+    if (shouldAcceptUtteranceRef.current && !shouldAcceptUtteranceRef.current(full)) {
+      return;
+    }
 
     const now = Date.now();
     if (full === lastSentUtteranceRef.current && now - lastSentAtRef.current < 3000) {
@@ -146,6 +154,11 @@ export function useContinuousSpeech({
       const preview = normalizeCovaInTranscript(
         `${pendingBufferRef.current} ${interim}`.replace(/\s+/g, " ").trim(),
       );
+      if (preview && shouldAcceptUtteranceRef.current && !shouldAcceptUtteranceRef.current(preview)) {
+        pendingBufferRef.current = "";
+        setInterimText("");
+        return;
+      }
       setInterimText(preview);
 
       if (interim.trim()) {
