@@ -27,12 +27,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [auth, setAuth] = useState<AuthState | null>(() => {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as Partial<AuthState>;
-    if (!parsed.accessToken || !parsed.refreshToken || !parsed.email || !parsed.role) {
+    try {
+      const parsed = JSON.parse(raw) as Partial<AuthState>;
+      if (!parsed.accessToken || !parsed.refreshToken || !parsed.email || !parsed.role) {
+        localStorage.removeItem(STORAGE_KEY);
+        return null;
+      }
+      setStoredTokens({
+        accessToken: parsed.accessToken,
+        refreshToken: parsed.refreshToken,
+      });
+      return parsed as AuthState;
+    } catch {
       localStorage.removeItem(STORAGE_KEY);
       return null;
     }
-    return parsed as AuthState;
   });
 
   const login = async (email: string, password: string) => {
@@ -131,6 +140,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     window.addEventListener("auth:expired", listener);
     return () => window.removeEventListener("auth:expired", listener);
   }, []);
+
+  useEffect(() => {
+    if (auth?.accessToken && auth.refreshToken) {
+      setStoredTokens({
+        accessToken: auth.accessToken,
+        refreshToken: auth.refreshToken,
+      });
+    }
+  }, [auth?.accessToken, auth?.refreshToken]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

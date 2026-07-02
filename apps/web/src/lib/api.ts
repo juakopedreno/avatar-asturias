@@ -53,6 +53,14 @@ async function parseResponse<T>(response: Response): Promise<T> {
   return (await response.json()) as T;
 }
 
+function cloneFormData(formData: FormData): FormData {
+  const clone = new FormData();
+  formData.forEach((value, key) => {
+    clone.append(key, value);
+  });
+  return clone;
+}
+
 async function requestWithAuth(
   path: string,
   init: RequestInit = {},
@@ -63,9 +71,12 @@ async function requestWithAuth(
   if (tokens?.accessToken) {
     headers.set("Authorization", `Bearer ${tokens.accessToken}`);
   }
+
+  const formDataBackup = init.body instanceof FormData ? cloneFormData(init.body) : null;
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
     headers,
+    body: formDataBackup ?? init.body,
   });
 
   if (response.status === 401 && retry && tokens?.refreshToken) {
@@ -80,7 +91,11 @@ async function requestWithAuth(
         accessToken: next.accessToken,
         refreshToken: next.refreshToken,
       });
-      return requestWithAuth(path, init, false);
+      const retryInit: RequestInit = { ...init };
+      if (formDataBackup) {
+        retryInit.body = cloneFormData(formDataBackup);
+      }
+      return requestWithAuth(path, retryInit, false);
     }
     clearStoredTokens();
     window.dispatchEvent(new CustomEvent("auth:expired"));

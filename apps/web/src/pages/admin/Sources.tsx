@@ -111,7 +111,12 @@ export default function Sources() {
       await refetchJobs();
       await refetchSources();
     } catch (error) {
-      setSourceError(error instanceof Error ? error.message : 'No se pudo subir el PDF');
+      const message = error instanceof Error ? error.message : 'No se pudo subir el PDF';
+      if (message.toLowerCase().includes('unauthorized')) {
+        setSourceError('Sesión expirada o no autorizada. Cierra sesión y vuelve a entrar en /admin/login.');
+      } else {
+        setSourceError(message);
+      }
     } finally {
       setSubmitting(false);
     }
