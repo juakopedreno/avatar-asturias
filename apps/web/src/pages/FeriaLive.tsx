@@ -45,13 +45,6 @@ const isSystemNotice = (content: string): boolean => {
 const VIDEO_ID = "feria-live-video";
 const FERIA_DISPLAY_BG = "#08101b";
 const FERIA_DISPLAY_BG_SOFT = "#0a1628";
-const THINKING_FILLER_DELAY_MS = 450;
-const THINKING_FILLER_PHRASES = [
-  "Un momento…",
-  "Déjame mirarlo…",
-  "Voy a consultarlo…",
-  "Un segundito…",
-];
 
 export default function FeriaLive() {
   const { data } = useChatBootstrapData();
@@ -226,24 +219,6 @@ export default function FeriaLive() {
       setStatus("thinking");
       setError(null);
 
-      let fillerTimer: number | null = null;
-      let fillerStarted = false;
-
-      const startThinkingFiller = () => {
-        if (generation !== askGenerationRef.current || fillerStarted) return;
-        if (!clientRef.current || !avatarConnected) return;
-
-        fillerStarted = true;
-        const filler =
-          THINKING_FILLER_PHRASES[Math.floor(Math.random() * THINKING_FILLER_PHRASES.length)];
-        setSubtitle(filler);
-        setStatus("speaking");
-        unmuteAvatarOutput();
-        void clientRef.current.talk?.(filler);
-      };
-
-      fillerTimer = window.setTimeout(startThinkingFiller, THINKING_FILLER_DELAY_MS);
-
       try {
         const rag = await apiPost<{ answer: string; conversationId?: string }>("/rag/ask", {
           question: trimmed,
@@ -258,28 +233,14 @@ export default function FeriaLive() {
           conversationIdRef.current = rag.conversationId;
         }
 
-        if (fillerTimer !== null) {
-          window.clearTimeout(fillerTimer);
-        }
-
-        if (fillerStarted) {
-          hardStopAvatarAudio();
-        }
-
         await speakWithAvatar(rag.answer);
       } catch (err) {
-        if (fillerTimer !== null) {
-          window.clearTimeout(fillerTimer);
-        }
-        if (fillerStarted) {
-          hardStopAvatarAudio();
-        }
         if (generation !== askGenerationRef.current) return;
         setError(err instanceof Error ? err.message : "No se pudo obtener respuesta");
         setStatus("listening");
       }
     },
-    [avatarConnected, conversationActive, hardStopAvatarAudio, speakWithAvatar, unmuteAvatarOutput],
+    [conversationActive, hardStopAvatarAudio, speakWithAvatar],
   );
 
   useEffect(() => {
