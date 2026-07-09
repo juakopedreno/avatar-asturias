@@ -4,10 +4,12 @@ import { PrismaService } from "../../prisma/prisma.service";
 import { AlertsService } from "../alerts/alerts.service";
 import { ContentService } from "../content/content.service";
 import { SourcesService } from "../sources/sources.service";
-import { COVA_OPENING_GREETING, COVA_IDENTITY_ANSWER, COVA_IDENTITY_ANSWER_EN, COVA_SMALL_TALK_ANSWER, COVA_SMALL_TALK_ANSWER_EN, COVA_THANKS_ANSWER, COVA_THANKS_ANSWER_EN, COVA_FAREWELL_ANSWER, COVA_FAREWELL_ANSWER_EN } from "../persona/asturias-cova.prompt";
+import { COVA_OPENING_GREETING, COVA_IDENTITY_ANSWER, COVA_IDENTITY_ANSWER_EN, COVA_TECH_SOVEREIGNTY_ANSWER, COVA_TECH_SOVEREIGNTY_ANSWER_EN, COVA_FERIA_OUT_OF_SCOPE_ANSWER, COVA_FERIA_OUT_OF_SCOPE_ANSWER_BRIEF, COVA_PROJECT_BUDGET_ANSWER, COVA_PROJECT_BUDGET_ANSWER_BRIEF, COVA_INCLUSIVE_LANGUAGE_HINT, COVA_SMALL_TALK_ANSWER, COVA_SMALL_TALK_ANSWER_EN, COVA_THANKS_ANSWER, COVA_THANKS_ANSWER_EN, COVA_FAREWELL_ANSWER, COVA_FAREWELL_ANSWER_EN } from "../persona/asturias-cova.prompt";
 import { AskQuestionDto } from "./dto/ask-question.dto";
 import { IngestApiDto } from "./dto/ingest-api.dto";
 import { IngestWebDto } from "./dto/ingest-web.dto";
+import { formatNumbersForVoiceEs } from "./format-voice-numbers";
+import { normalizeCovaInTranscript } from "./normalize-cova";
 import { cosineSimilarity, embedTexts, isRealEmbedding } from "./rag-embeddings";
 
 const CONTROLLED_RESPONSE_MIN_SCORE = 3;
@@ -262,15 +264,46 @@ export class RagService {
   }
 
   async ask(dto: AskQuestionDto) {
+    const question = normalizeCovaInTranscript(dto.question);
     const { id: conversationId } = await this.resolveConversation(dto);
     const history = await this.loadRecentHistory(conversationId);
-    const retrievalQuery = this.buildRetrievalQuery(dto.question, history);
-    const normalizedQuestion = this.normalizeForSearch(dto.question);
+    const retrievalQuery = this.buildRetrievalQuery(question, history);
+    const normalizedQuestion = this.normalizeForSearch(question);
     const normalizedRetrieval = this.normalizeForSearch(retrievalQuery);
+
+    if (this.isProjectBudgetQuestion(normalizedQuestion)) {
+      const budgetAnswer = dto.brief ? COVA_PROJECT_BUDGET_ANSWER_BRIEF : COVA_PROJECT_BUDGET_ANSWER;
+      await this.saveSimpleTurn(conversationId, question, budgetAnswer);
+      return {
+        answer: budgetAnswer,
+        uncertainty: false,
+        sources: [],
+        guardrails: {
+          offTopicBlocked: false,
+          personalDataUsedForTraining: false,
+        },
+        conversationId,
+      };
+    }
+
+    if (this.isTechSovereigntyQuestion(normalizedQuestion)) {
+      const sovereigntyAnswer = this.getTechSovereigntyAnswerForLanguage(dto.language);
+      await this.saveSimpleTurn(conversationId, question, sovereigntyAnswer);
+      return {
+        answer: sovereigntyAnswer,
+        uncertainty: false,
+        sources: [],
+        guardrails: {
+          offTopicBlocked: false,
+          personalDataUsedForTraining: false,
+        },
+        conversationId,
+      };
+    }
 
     if (this.isAssistantIdentityQuestion(normalizedQuestion) && !this.isDocumentQuestion(normalizedQuestion)) {
       const identityAnswer = this.getIdentityAnswerForLanguage(dto.language);
-      await this.saveSimpleTurn(conversationId, dto.question, identityAnswer);
+      await this.saveSimpleTurn(conversationId, question, identityAnswer);
       return {
         answer: identityAnswer,
         uncertainty: false,
@@ -293,7 +326,7 @@ export class RagService {
               history,
             )
           : this.getCasualAnswerForIntent(intent, dto.language);
-      await this.saveSimpleTurn(conversationId, dto.question, casualAnswer);
+      await this.saveSimpleTurn(conversationId, question, casualAnswer);
       return {
         answer: casualAnswer,
         uncertainty: false,
@@ -309,7 +342,7 @@ export class RagService {
     if (dto.wearablesSummary?.trim() && this.isExplicitWearablesRequest(normalizedQuestion)) {
       let wearablesAnswer = this.buildWearablesGuidanceAnswer(
         dto.language,
-        dto.question,
+        question,
         dto.wearablesSummary,
       );
       const topicAlerts = await this.getAlertsMatchingQuestion(normalizedRetrieval);
@@ -317,7 +350,7 @@ export class RagService {
         const prefix = topicAlerts.map((a) => `[Aviso] ${a.title}: ${a.message}`).join(" ");
         wearablesAnswer = `${prefix} ${wearablesAnswer}`.trim();
       }
-      await this.saveSimpleTurn(conversationId, dto.question, wearablesAnswer);
+      await this.saveSimpleTurn(conversationId, question, wearablesAnswer);
       return {
         answer: wearablesAnswer,
         uncertainty: false,
@@ -342,8 +375,8 @@ export class RagService {
     const feriaRagOnly = dto.ragScope === "feria" || Boolean(scopedSourceIds?.length);
 
     if (dto.ragScope === "feria" && (!scopedSourceIds || scopedSourceIds.length === 0)) {
-      const noFeriaSourcesAnswer = this.buildNoSourceAnswer(dto.brief);
-      await this.saveSimpleTurn(conversationId, dto.question, noFeriaSourcesAnswer);
+      const noFeriaSourcesAnswer = this.buildNoSourceAnswer(dto.brief, dto.ragScope);
+      await this.saveSimpleTurn(conversationId, question, noFeriaSourcesAnswer);
       return {
         answer: noFeriaSourcesAnswer,
         uncertainty: true,
@@ -378,7 +411,7 @@ export class RagService {
           answer = `${prefix} ${answer}`.trim();
         }
         await this.prisma.message.create({
-          data: { conversationId, role: "user", content: dto.question },
+          data: { conversationId, role: "user", content: question },
         });
         const assistantMessage = await this.prisma.message.create({
           data: { conversationId, role: "assistant", content: answer },
@@ -415,13 +448,13 @@ export class RagService {
         : await this.rankChunksByRelevance(candidates, retrievalQuery, tokens, normalizedRetrieval);
 
     if (matched.length === 0) {
-      let noSourceAnswer = this.buildNoSourceAnswer(dto.brief);
+      let noSourceAnswer = this.buildNoSourceAnswer(dto.brief, dto.ragScope);
       const topicAlerts = await this.getAlertsMatchingQuestion(normalizedRetrieval);
       if (topicAlerts.length > 0) {
         const prefix = topicAlerts.map((a) => `[Aviso] ${a.title}: ${a.message}`).join(" ");
         noSourceAnswer = `${prefix} ${noSourceAnswer}`.trim();
       }
-      await this.saveSimpleTurn(conversationId, dto.question, noSourceAnswer);
+      await this.saveSimpleTurn(conversationId, question, noSourceAnswer);
       return {
         answer: noSourceAnswer,
         uncertainty: true,
@@ -436,13 +469,16 @@ export class RagService {
       this.getAlertsMatchingQuestion(normalizedRetrieval),
     ]);
     let finalAnswer = generated.answer;
+    if (dto.brief) {
+      finalAnswer = formatNumbersForVoiceEs(finalAnswer);
+    }
     if (topicAlerts.length > 0) {
       const prefix = topicAlerts.map((a) => `[Aviso] ${a.title}: ${a.message}`).join(" ");
       finalAnswer = `${prefix} ${finalAnswer}`.trim();
     }
     void this.persistAskTurn({
       conversationId,
-      question: dto.question,
+      question,
       answer: finalAnswer,
       citations: selectedForCitations,
     }).catch(() => {});
@@ -520,10 +556,11 @@ export class RagService {
       .trim()
       .split(/(?<=[.!?…])\s+/)
       .filter(Boolean);
-    if (sentences.length <= 3) {
-      return sentences.join(" ");
-    }
-    return `${sentences.slice(0, 3).join(" ")} ¿Quieres que te cuente más?`;
+    const trimmed =
+      sentences.length <= 3
+        ? sentences.join(" ")
+        : `${sentences.slice(0, 3).join(" ")} ¿Quieres que te cuente más?`;
+    return formatNumbersForVoiceEs(trimmed);
   }
 
   private async resolveScopedSourceIds(dto: AskQuestionDto): Promise<string[] | undefined> {
@@ -578,7 +615,10 @@ export class RagService {
     });
   }
 
-  private buildNoSourceAnswer(brief?: boolean): string {
+  private buildNoSourceAnswer(brief?: boolean, ragScope?: AskQuestionDto["ragScope"]): string {
+    if (ragScope === "feria") {
+      return brief ? COVA_FERIA_OUT_OF_SCOPE_ANSWER_BRIEF : COVA_FERIA_OUT_OF_SCOPE_ANSWER;
+    }
     if (brief) {
       return "No tengo información clara sobre eso ahora mismo. ¿Puedes reformular la pregunta o concretar un poco más?";
     }
@@ -737,6 +777,7 @@ export class RagService {
     matched: Array<{ sourceId: string; sourceLabel: string; text: string; updatedAt: Date }>,
     history: Array<{ role: string; content: string }> = [],
   ): Promise<{ answer: string; uncertainty: boolean; offTopicBlocked: boolean }> {
+    const question = normalizeCovaInTranscript(dto.question);
     const useFullFeriaContext = dto.ragScope === "feria" && matched.length > 12;
     const context = matched
       .map((chunk, index) => {
@@ -746,7 +787,7 @@ export class RagService {
       })
       .join("\n\n");
 
-    const localFallback = this.buildLocalAnswer(dto.question, matched, dto.brief);
+    const localFallback = this.buildLocalAnswer(question, matched, dto.brief);
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
       return {
@@ -758,7 +799,7 @@ export class RagService {
 
     try {
       const languageName = this.resolveLanguageName(dto.language);
-      const normalizedQ = this.normalizeForSearch(dto.question);
+      const normalizedQ = this.normalizeForSearch(question);
       const attachWearables =
         Boolean(dto.wearablesSummary?.trim()) && this.isExplicitWearablesRequest(normalizedQ);
       const wearablesBlock = attachWearables
@@ -774,11 +815,18 @@ export class RagService {
       const briefHint = dto.brief
         ? " Responde SOLO con 2 o 3 frases cortas, directas y fáciles de escuchar en voz alta. " +
           "Si el tema admite más detalle, termina con una pregunta breve como «¿Quieres que te cuente más?». " +
-          "No uses listas ni párrafos largos."
+          "No uses listas ni párrafos largos. " +
+          "Para importes y cifras, escríbelos en palabras (por ejemplo: «dos millones novecientos treinta y cuatro mil euros»), nunca dígito a dígito ni con muchos ceros seguidos."
         : "";
       const feriaHint = dto.ragScope === "feria"
-        ? " Responde únicamente con la información de los documentos de feria proporcionados en el contexto."
+        ? " Responde únicamente con la información de los documentos de feria proporcionados en el contexto. " +
+          "Si la pregunta no es sobre CoVA ni servicios sociales del Principado, explica que no es tu función en este contexto y redirige a ayudas, trámites, dependencia o el proyecto CoVA. " +
+          "No digas que no tienes información sobre un proyecto mal transcrito: CoVA puede aparecer como Cobán, Coba o Kova por error de voz."
         : "";
+      const repetitionHint =
+        history.length > 0
+          ? " No repitas literalmente respuestas anteriores; si ya lo explicaste, resume en una frase."
+          : "";
       const historyBlock =
         history.length > 0
           ? `\nConversación reciente:\n${this.formatHistoryForPrompt(history)}\n`
@@ -799,18 +847,20 @@ export class RagService {
               content:
                 `Eres el asistente virtual del Principado de Asturias. ` +
                 `Responde en ${languageName} con tono claro, cercano e institucional. ` +
+                COVA_INCLUSIVE_LANGUAGE_HINT + " " +
                 "Usa solo el contexto recuperado de fuentes oficiales; no inventes normativa, plazos, importes ni trámites. " +
                 "Si el contexto no alcanza, dilo con naturalidad y sugiere consultar la web o los canales oficiales del Principado. " +
                 "No des asesoramiento legal vinculante ni sustituyas la atención presencial cuando el trámite lo requiera." +
                 wearableSystemHint +
                 noWearablesDetailHint +
                 briefHint +
-                feriaHint,
+                feriaHint +
+                repetitionHint,
             },
             {
               role: "user",
               content:
-                `Pregunta actual del usuario:\n${dto.question}\n` +
+                `Pregunta actual del usuario:\n${question}\n` +
                 historyBlock +
                 wearablesBlock +
                 `\nContexto recuperado:\n${context}\n\n` +
@@ -967,6 +1017,7 @@ export class RagService {
               content:
                 `Eres CoVA, asistente virtual del Principado de Asturias. ` +
                 `Responde en ${languageName} con tono cercano, natural, breve e institucional. ` +
+                COVA_INCLUSIVE_LANGUAGE_HINT + " " +
                 "Esta es conversación casual, no una consulta documental: no digas que faltan fuentes. " +
                 "Responde DIRECTAMENTE a lo que el usuario acaba de decir o preguntar. " +
                 'Si pregunta "cómo estás" o similar, contesta primero a eso (por ejemplo, que estás bien). ' +
@@ -981,7 +1032,7 @@ export class RagService {
             })),
             {
               role: "user",
-              content: dto.question,
+              content: normalizeCovaInTranscript(dto.question),
             },
           ],
         }),
@@ -1039,6 +1090,89 @@ export class RagService {
     return COVA_IDENTITY_ANSWER;
   }
 
+  private getTechSovereigntyAnswerForLanguage(language: AskQuestionDto["language"]): string {
+    if (language === "EN") return COVA_TECH_SOVEREIGNTY_ANSWER_EN;
+    return COVA_TECH_SOVEREIGNTY_ANSWER;
+  }
+
+  private isProjectBudgetQuestion(normalizedQuestion: string): boolean {
+    const q = normalizedQuestion.trim();
+    if (!q) return false;
+
+    const budgetSignals = [
+      "cuanto cuesta",
+      "cuanto ha costado",
+      "cuanto cuesta el proyecto",
+      "cuanto ha costado cova",
+      "cuanto cuesta cova",
+      "presupuesto del proyecto",
+      "presupuesto de cova",
+      "presupuesto de licitacion",
+      "cuanta inversion",
+      "cuanto dinero",
+      "cuanto se ha invertido",
+      "precio del proyecto",
+      "coste del proyecto",
+      "cuantos millones",
+    ];
+
+    const aboutCova =
+      q.includes("cova") ||
+      q.includes("proyecto") ||
+      q.includes("licitacion") ||
+      q.includes("feria") ||
+      q.includes("asturias");
+
+    if (budgetSignals.some((phrase) => q.includes(phrase))) {
+      return aboutCova || q.includes("presupuesto") || q.includes("licitacion");
+    }
+
+    return (
+      (q.includes("presupuesto") || q.includes("inversion")) &&
+      (q.includes("cova") || q.includes("proyecto"))
+    );
+  }
+
+  private isTechSovereigntyQuestion(normalizedQuestion: string): boolean {
+    const q = normalizedQuestion.trim();
+    if (!q) return false;
+
+    const sovereigntyPhrases = [
+      "soberania tecnologica",
+      "soberania digital",
+      "soberania de datos",
+      "hardware fisico",
+      "tienes hardware",
+      "tienes un hardware",
+      "donde funcionas",
+      "donde estas alojado",
+      "donde estas alojada",
+      "en que servidores",
+      "que servidores",
+      "infraestructura propia",
+      "servidores propios",
+      "on premise",
+      "on-premise",
+      "codigo abierto",
+      "open source",
+      "software libre",
+      "dgx",
+      "nvidia",
+      "dependencia de proveedores",
+      "proveedores externos",
+      "fluctuaciones del mercado",
+      "nube ajena",
+      "solo en la nube",
+      "technological sovereignty",
+      "physical hardware",
+      "where do you run",
+      "on premise",
+      "open source",
+    ];
+
+    return sovereigntyPhrases.some((phrase) => q.includes(phrase));
+  }
+
   private isAssistantIdentityQuestion(normalizedQuestion: string): boolean {
     const q = normalizedQuestion.trim();
     if (!q) return false;
@@ -1048,6 +1182,12 @@ export class RagService {
       "co va",
       "coba",
       "co ba",
+      "coban",
+      "cobán",
+      "kova",
+      "ko va",
+      "koba",
+      "ko ba",
       "copa",
       "co pa",
       "covia",
@@ -1058,12 +1198,15 @@ export class RagService {
     const identityPhrases = [
       "que es cova",
       "que es coba",
+      "que es coban",
       "que es copa",
       "que significa cova",
       "que significa coba",
+      "que significa coban",
       "que significa copa",
       "quien es cova",
       "quien es coba",
+      "quien es coban",
       "quien es copa",
       "que eres",
       "quien eres",
@@ -1077,11 +1220,15 @@ export class RagService {
       "cuentame sobre cova",
       "cuentame de cova",
       "cuentame sobre coba",
+      "cuentame sobre coban",
       "cuentame sobre copa",
       "hablame de cova",
       "hablame sobre cova",
       "hablame de coba",
+      "hablame de coban",
       "hablame de copa",
+      "proyecto coban",
+      "proyecto coba",
       "explicame cova",
       "explicame que es cova",
       "proyecto cova",

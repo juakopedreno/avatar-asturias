@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from "react";
 
 const WIDGET_SCRIPT_SRC = "https://unpkg.com/@anam-ai/agent-widget";
-const DEFAULT_WIDGET_AGENT_ID = "d41e1d25-8129-4aa8-a757-5f867835cdd1";
+const DEFAULT_WIDGET_AGENT_ID = "cf5e0976-4fb8-494f-a60b-17afe764b2d9";
 
 function loadWidgetScript(): Promise<void> {
   if (customElements.get("anam-agent")) {

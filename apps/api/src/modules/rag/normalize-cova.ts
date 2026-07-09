@@ -1,4 +1,4 @@
-/** Corrige transcripciones habituales del nombre del asistente. */
+/** Corrige transcripciones habituales del nombre del asistente (CoVA). */
 const COVA_MISHEARING_PATTERNS: RegExp[] = [
   /\bcob[aá]n\b/gi,
   /\bko\s*ba\b/gi,
