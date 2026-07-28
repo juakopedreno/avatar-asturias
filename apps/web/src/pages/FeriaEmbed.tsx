@@ -14,6 +14,7 @@ type AvatarSessionResponse = {
   sessionId: string;
   streamUrl: string;
   sessionToken?: string;
+  previewImageUrl?: string;
 };
 
 type AnamClientHandle = {
@@ -43,6 +44,7 @@ export default function FeriaEmbed() {
   const [audioEnabled, setAudioEnabled] = useState(false);
   const [textInput, setTextInput] = useState("");
   const [sendingText, setSendingText] = useState(false);
+  const [avatarPreview, setAvatarPreview] = useState("");
 
   const agentId = useMemo(() => {
     const fromQuery = new URLSearchParams(window.location.search).get("agent")?.trim();
@@ -142,6 +144,9 @@ export default function FeriaEmbed() {
       if (response.provider !== "anam" || !response.sessionToken) {
         throw new Error("El avatar de Anam no está disponible.");
       }
+      if (response.previewImageUrl) {
+        setAvatarPreview(response.previewImageUrl);
+      }
       await connectAnam(response.sessionToken);
     } catch (sessionError) {
       setStatus("idle");
@@ -235,18 +240,30 @@ export default function FeriaEmbed() {
 
   return (
     <main className="relative h-screen w-screen overflow-hidden bg-[#08101b] text-white">
+      {avatarPreview ? (
+        <img
+          src={avatarPreview}
+          alt=""
+          className={`absolute inset-0 h-full w-full object-contain transition-opacity duration-300 ${
+            status === "active" ? "opacity-0" : "opacity-100"
+          }`}
+          aria-hidden="true"
+        />
+      ) : null}
       <video
         id={VIDEO_ID}
         ref={videoRef}
         autoPlay
         playsInline
         muted={!audioEnabled}
-        className="absolute inset-0 h-full w-full object-contain"
-        style={{ backgroundColor: FERIA_BG }}
+        className={`absolute inset-0 h-full w-full object-contain transition-opacity duration-300 ${
+          status === "active" ? "opacity-100" : "opacity-0"
+        }`}
+        style={{ backgroundColor: "transparent" }}
       />
 
       {status === "connecting" ? (
-        <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center bg-[#08101b]">
+        <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center bg-black/20">
           <div className="flex items-center gap-3 rounded-full bg-black/45 px-5 py-3 text-white/90 backdrop-blur">
             <LoaderCircle className="h-6 w-6 animate-spin" aria-hidden="true" />
             <span>Conectando con CoVA…</span>

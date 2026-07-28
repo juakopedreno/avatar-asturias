@@ -13,4 +13,5 @@ export interface AvatarSessionResponse {
   sessionId: string;
   streamUrl: string;
   sessionToken?: string;
+  previewImageUrl?: string;
 }
