@@ -6,7 +6,7 @@ import { apiPost } from "@/lib/api";
 const DEFAULT_WIDGET_AGENT_ID = "cf5e0976-4fb8-494f-a60b-17afe764b2d9";
 const VIDEO_ID = "feria-embed-video";
 const FERIA_BG = "#08101b";
-const AVATAR_PREVIEW_URL = "/cova-avatar-preview.webp";
+const AVATAR_PREVIEW_URL = "/cova-portada.jpg";
 
 type SessionStatus = "idle" | "connecting" | "active" | "ended";
 
