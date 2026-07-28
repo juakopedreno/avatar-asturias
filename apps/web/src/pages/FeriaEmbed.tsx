@@ -52,14 +52,14 @@ export default function FeriaEmbed() {
     return fromQuery || fromEnv || DEFAULT_WIDGET_AGENT_ID;
   }, []);
 
-  const disconnectAnam = async () => {
+  const disconnectAnam = async (clearVideo = true) => {
     const client = clientRef.current;
     clientRef.current = null;
     if (client) {
       await client.stopStreaming?.();
       await client.disconnect?.();
     }
-    if (videoRef.current) {
+    if (clearVideo && videoRef.current) {
       videoRef.current.srcObject = null;
     }
     setAudioEnabled(false);
@@ -154,7 +154,7 @@ export default function FeriaEmbed() {
   };
 
   const endSession = async () => {
-    await disconnectAnam();
+    await disconnectAnam(false);
     setStatus("ended");
     setCaption("");
   };
@@ -217,10 +217,13 @@ export default function FeriaEmbed() {
 
   useEffect(() => {
     unmountedRef.current = false;
+    void startSession();
     return () => {
       unmountedRef.current = true;
       void disconnectAnam();
     };
+    // La sesión debe iniciarse una sola vez al montar la pantalla.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -242,35 +245,28 @@ export default function FeriaEmbed() {
         style={{ backgroundColor: FERIA_BG }}
       />
 
-      {status !== "active" ? (
-        <div className="absolute inset-0 z-20 flex items-center justify-center bg-[#08101b] px-6">
-          <div className="flex max-w-md flex-col items-center text-center">
-            <p className="mb-2 text-sm font-semibold uppercase tracking-[0.24em] text-cyan-200">
-              CoVA
-            </p>
-            <h1 className="text-3xl font-semibold sm:text-4xl">Asistente virtual del Principado</h1>
-            <p className="mt-4 text-base leading-relaxed text-white/75">
-              Conversa por voz o escribe tu pregunta. Esta demostración no realiza trámites reales.
-            </p>
-            <button
-              type="button"
-              onClick={() => void startSession()}
-              disabled={status === "connecting"}
-              className="mt-8 inline-flex min-h-14 items-center gap-3 rounded-full bg-cyan-500 px-7 py-3 text-lg font-semibold text-slate-950 shadow-lg transition hover:bg-cyan-400 disabled:cursor-wait disabled:opacity-70"
-            >
-              {status === "connecting" ? (
-                <LoaderCircle className="h-6 w-6 animate-spin" aria-hidden="true" />
-              ) : (
-                <Play className="h-6 w-6 fill-current" aria-hidden="true" />
-              )}
-              {status === "connecting"
-                ? "Conectando…"
-                : status === "ended"
-                  ? "Iniciar otra conversación"
-                  : "Hablar con CoVA"}
-            </button>
-            {error ? <p className="mt-5 text-sm text-red-200">{error}</p> : null}
+      {status === "connecting" ? (
+        <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center bg-[#08101b]">
+          <div className="flex items-center gap-3 rounded-full bg-black/45 px-5 py-3 text-white/90 backdrop-blur">
+            <LoaderCircle className="h-6 w-6 animate-spin" aria-hidden="true" />
+            <span>Conectando con CoVA…</span>
           </div>
+        </div>
+      ) : null}
+
+      {status === "idle" || status === "ended" ? (
+        <div className="absolute inset-x-0 bottom-8 z-30 flex flex-col items-center gap-3 px-4">
+          <button
+            type="button"
+            onClick={() => void startSession()}
+            className="inline-flex min-h-14 items-center gap-3 rounded-full bg-cyan-500 px-7 py-3 text-lg font-semibold text-slate-950 shadow-xl transition hover:bg-cyan-400"
+          >
+            <Play className="h-6 w-6 fill-current" aria-hidden="true" />
+            Hablar con CoVA
+          </button>
+          {error ? (
+            <p className="rounded-lg bg-red-950/80 px-4 py-2 text-sm text-red-100">{error}</p>
+          ) : null}
         </div>
       ) : null}
 
