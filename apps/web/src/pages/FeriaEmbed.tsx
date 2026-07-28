@@ -235,8 +235,13 @@ export default function FeriaEmbed() {
   }, []);
 
   useEffect(() => {
-    const startWithSpace = (event: KeyboardEvent) => {
-      if (event.code !== "Space" || (status !== "idle" && status !== "ended")) return;
+    const toggleWithSpace = (event: KeyboardEvent) => {
+      if (
+        event.code !== "Space" ||
+        (status !== "idle" && status !== "ended" && status !== "active")
+      ) {
+        return;
+      }
 
       const target = event.target as HTMLElement | null;
       if (
@@ -249,12 +254,16 @@ export default function FeriaEmbed() {
       }
 
       event.preventDefault();
-      void startSession();
+      if (status === "active") {
+        void endSession();
+      } else {
+        void startSession();
+      }
     };
 
-    window.addEventListener("keydown", startWithSpace);
-    return () => window.removeEventListener("keydown", startWithSpace);
-    // Se actualiza al cambiar el estado; startSession usa siempre el render actual.
+    window.addEventListener("keydown", toggleWithSpace);
+    return () => window.removeEventListener("keydown", toggleWithSpace);
+    // Se actualiza al cambiar el estado; las acciones usan siempre el render actual.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
 
