@@ -51,17 +51,11 @@ export class AnamAvatarProvider implements AvatarProvider {
       throw new Error("Respuesta Anam invalida: falta sessionToken");
     }
 
-    const previewImageUrl =
-      request.mode === "feria-embed"
-        ? await this.getPersonaPreviewImage(this.resolvePersonaId(request))
-        : undefined;
-
     return {
       provider: this.name,
       sessionId: uuid(),
       streamUrl: `${this.baseUrl}/v1/auth/session-token`,
       sessionToken: json.sessionToken,
-      ...(previewImageUrl ? { previewImageUrl } : {}),
     };
   }
 
@@ -154,27 +148,6 @@ export class AnamAvatarProvider implements AvatarProvider {
       );
     }
     return process.env.ANAM_PERSONA_ID?.trim();
-  }
-
-  private async getPersonaPreviewImage(personaId?: string): Promise<string | undefined> {
-    if (!personaId) return undefined;
-
-    try {
-      const response = await fetch(`${this.baseUrl}/v1/personas/${personaId}`, {
-        headers: { Authorization: `Bearer ${this.apiKey}` },
-      });
-      if (!response.ok) return undefined;
-
-      const persona = (await response.json()) as {
-        avatar?: {
-          portraitImageUrl?: string | null;
-          imageUrl?: string | null;
-        } | null;
-      };
-      return persona.avatar?.portraitImageUrl ?? persona.avatar?.imageUrl ?? undefined;
-    } catch {
-      return undefined;
-    }
   }
 
   private resolveLanguage(language: AvatarSessionRequest["language"]): AnamLanguageCode {

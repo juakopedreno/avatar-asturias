@@ -6,6 +6,7 @@ import { apiPost } from "@/lib/api";
 const DEFAULT_WIDGET_AGENT_ID = "cf5e0976-4fb8-494f-a60b-17afe764b2d9";
 const VIDEO_ID = "feria-embed-video";
 const FERIA_BG = "#08101b";
+const AVATAR_PREVIEW_URL = "/cova-avatar-preview.webp";
 
 type SessionStatus = "idle" | "connecting" | "active" | "ended";
 
@@ -14,7 +15,6 @@ type AvatarSessionResponse = {
   sessionId: string;
   streamUrl: string;
   sessionToken?: string;
-  previewImageUrl?: string;
 };
 
 type AnamClientHandle = {
@@ -44,7 +44,6 @@ export default function FeriaEmbed() {
   const [audioEnabled, setAudioEnabled] = useState(false);
   const [textInput, setTextInput] = useState("");
   const [sendingText, setSendingText] = useState(false);
-  const [avatarPreview, setAvatarPreview] = useState("");
 
   const agentId = useMemo(() => {
     const fromQuery = new URLSearchParams(window.location.search).get("agent")?.trim();
@@ -144,9 +143,6 @@ export default function FeriaEmbed() {
       if (response.provider !== "anam" || !response.sessionToken) {
         throw new Error("El avatar de Anam no está disponible.");
       }
-      if (response.previewImageUrl) {
-        setAvatarPreview(response.previewImageUrl);
-      }
       await connectAnam(response.sessionToken);
     } catch (sessionError) {
       setStatus("idle");
@@ -240,16 +236,14 @@ export default function FeriaEmbed() {
 
   return (
     <main className="relative h-screen w-screen overflow-hidden bg-[#08101b] text-white">
-      {avatarPreview ? (
-        <img
-          src={avatarPreview}
-          alt=""
-          className={`absolute inset-0 h-full w-full object-contain transition-opacity duration-300 ${
-            status === "active" ? "opacity-0" : "opacity-100"
-          }`}
-          aria-hidden="true"
-        />
-      ) : null}
+      <img
+        src={AVATAR_PREVIEW_URL}
+        alt=""
+        className={`absolute inset-0 h-full w-full object-contain transition-opacity duration-300 ${
+          status === "active" ? "opacity-0" : "opacity-100"
+        }`}
+        aria-hidden="true"
+      />
       <video
         id={VIDEO_ID}
         ref={videoRef}
