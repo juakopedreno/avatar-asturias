@@ -5,6 +5,14 @@ import { AvatarProvider } from "../avatar-provider.interface";
 import { AvatarSessionRequest, AvatarSessionResponse } from "../avatar.types";
 
 type AnamLanguageCode = "es" | "en" | "fr" | "de";
+type AnamAvatarModel = "cara-2" | "cara-3" | "cara-4" | "cara-4-latest";
+
+const DEFAULT_FERIA_PERSONA_ID = "cf5e0976-4fb8-494f-a60b-17afe764b2d9";
+const FERIA_PORTRAIT_SESSION_OPTIONS = {
+  videoWidth: 768,
+  videoHeight: 1152,
+  videoQuality: "high",
+} as const;
 
 @Injectable()
 export class AnamAvatarProvider implements AvatarProvider {
@@ -83,16 +91,24 @@ export class AnamAvatarProvider implements AvatarProvider {
   }
 
   private buildSessionPayload(request: AvatarSessionRequest): Record<string, unknown> {
-    const personaId = process.env.ANAM_PERSONA_ID?.trim();
+    const isFeriaEmbed = request.mode === "feria-embed";
+    const personaId = isFeriaEmbed
+      ? request.personaId?.trim() ||
+        process.env.ANAM_FERIA_PERSONA_ID?.trim() ||
+        DEFAULT_FERIA_PERSONA_ID
+      : process.env.ANAM_PERSONA_ID?.trim();
+
     if (personaId) {
       return {
         personaConfig: {
           personaId,
+          ...(isFeriaEmbed ? { avatarModel: "cara-4" satisfies AnamAvatarModel } : {}),
           languageCode: this.resolveLanguage(request.language),
           ...(process.env.ANAM_SKIP_GREETING
             ? { skipGreeting: process.env.ANAM_SKIP_GREETING === "true" }
             : {}),
         },
+        ...(isFeriaEmbed ? { sessionOptions: FERIA_PORTRAIT_SESSION_OPTIONS } : {}),
       };
     }
 
@@ -102,13 +118,19 @@ export class AnamAvatarProvider implements AvatarProvider {
     const configuredModel = process.env.ANAM_AVATAR_MODEL?.trim();
     const configuredAvatarId = process.env.ANAM_AVATAR_ID?.trim();
     const maxLength = Number.parseInt(process.env.ANAM_MAX_SESSION_LENGTH_SECONDS ?? "", 10);
+    const supportedModel =
+      configuredModel === "cara-2" ||
+      configuredModel === "cara-3" ||
+      configuredModel === "cara-4" ||
+      configuredModel === "cara-4-latest"
+        ? (configuredModel satisfies AnamAvatarModel)
+        : undefined;
+
     return {
       personaConfig: {
         name: process.env.ANAM_PERSONA_NAME ?? "CoVA",
         avatarId: configuredAvatarId || "30fa96d0-26c4-4e55-94a0-517025942e18",
-        ...(configuredModel === "cara-2" || configuredModel === "cara-3"
-          ? { avatarModel: configuredModel }
-          : {}),
+        ...(supportedModel ? { avatarModel: supportedModel } : {}),
         ...(resolvedVoiceId ? { voiceId: resolvedVoiceId } : {}),
         ...(configuredLlmId ? { llmId: configuredLlmId } : {}),
         systemPrompt: process.env.ANAM_SYSTEM_PROMPT ?? ANAM_DELIVERY_PROMPT,
