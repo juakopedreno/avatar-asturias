@@ -234,6 +234,30 @@ export default function FeriaEmbed() {
     }
   }, []);
 
+  useEffect(() => {
+    const startWithSpace = (event: KeyboardEvent) => {
+      if (event.code !== "Space" || (status !== "idle" && status !== "ended")) return;
+
+      const target = event.target as HTMLElement | null;
+      if (
+        target?.isContentEditable ||
+        target?.tagName === "INPUT" ||
+        target?.tagName === "TEXTAREA" ||
+        target?.tagName === "BUTTON"
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      void startSession();
+    };
+
+    window.addEventListener("keydown", startWithSpace);
+    return () => window.removeEventListener("keydown", startWithSpace);
+    // Se actualiza al cambiar el estado; startSession usa siempre el render actual.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status]);
+
   return (
     <main className="relative h-screen w-screen overflow-hidden bg-[#08101b] text-white">
       <img
@@ -275,6 +299,9 @@ export default function FeriaEmbed() {
             <Play className="h-6 w-6 fill-current" aria-hidden="true" />
             Hablar con CoVA
           </button>
+          <p className="rounded-full bg-black/55 px-4 py-2 text-sm text-white/85 backdrop-blur">
+            También puedes pulsar la barra espaciadora
+          </p>
           {error ? (
             <p className="rounded-lg bg-red-950/80 px-4 py-2 text-sm text-red-100">{error}</p>
           ) : null}
