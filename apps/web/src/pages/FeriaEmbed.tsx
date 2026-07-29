@@ -382,7 +382,7 @@ export default function FeriaEmbed() {
             id="feria-embed-text"
             value={textInput}
             onChange={(event) => setTextInput(event.target.value)}
-            placeholder="Escribe tu pregunta…"
+            placeholder="Habla con CoVA"
             className="min-h-12 flex-1 bg-transparent px-4 text-base text-white outline-none placeholder:text-white/55 sm:text-lg"
           />
           <button
